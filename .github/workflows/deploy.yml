@@ -33,7 +33,7 @@ jobs:
           curl --fail --silent --show-error --ftp-create-dirs \
             -u "$FTP_USERNAME:$FTP_PASSWORD" \
             -T .ftp-deploy-sync-state.json \
-            "ftp://$FTP_SERVER/domains/jesseakoma.nl/public_html/webpackit/.ftp-deploy-sync-state.json"
+            "ftp://$FTP_SERVER/domains/jesseakoma.nl/public_html/TipTopBarbershop/.ftp-deploy-sync-state.json"
 
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
@@ -44,5 +44,5 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: ./dist/
-          server-dir: /domains/jesseakoma.nl/public_html/webpackit/
+          server-dir: /domains/jesseakoma.nl/public_html/TipTopBarbershop/
           dangerous-clean-slate: false

@@ -32,7 +32,7 @@ jobs:
           FTP_HOST="${FTP_SERVER#*://}"
           FTP_HOST="${FTP_HOST%/}"
           printf '{}' > .ftp-deploy-sync-state.json
-          curl --fail --silent --show-error --ftp-create-dirs --ftp-pasv \
+          curl --fail --silent --show-error --ftp-create-dirs --ftp-pasv --disable-epsv \
             -u "$FTP_USERNAME:$FTP_PASSWORD" \
             -T .ftp-deploy-sync-state.json \
             "ftp://$FTP_HOST/domains/jesseakoma.nl/public_html/tiptopbarbershop/.ftp-deploy-sync-state.json"

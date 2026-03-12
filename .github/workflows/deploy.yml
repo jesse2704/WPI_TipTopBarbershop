@@ -35,7 +35,21 @@ jobs:
       #       -T .ftp-deploy-sync-state.json \
       #       "ftp://$FTP_SERVER/domains/jesseakoma.nl/public_html/tiptopbarbershop/.ftp-deploy-sync-state.json"
 
+      - name: Check FTP configuration
+        id: check_ftp
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        run: |
+          if [[ -n "$FTP_SERVER" ]]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "⚠️ FTP_SERVER secret is not configured, skipping deployment"
+          fi
+
       - name: Deploy to FTP
+        if: steps.check_ftp.outputs.configured == 'true'
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.FTP_SERVER }}

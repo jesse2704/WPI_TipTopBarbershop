@@ -39,8 +39,8 @@ const INFO_ITEMS = [
     icon: Clock,
     labelNl: 'Openingstijden',
     labelEn: 'Hours',
-    valueNl: 'Ma–Vr: 9:00–20:00\nZa: 9:00–18:00 · Zo: 10:00–16:00',
-    valueEn: 'Mon–Fri: 9AM–8PM\nSat: 9AM–6PM · Sun: 10AM–4PM',
+    valueNl: 'Di–Vr: 12:00–20:00\nZa: 12:00–18:00 · Zo: 12:00–16:00\nMa: Gesloten',
+    valueEn: 'Tue–Fri: 12PM–8PM\nSat: 12PM–6PM · Sun: 12PM–4PM\nMon: Closed',
   },
 ];
 

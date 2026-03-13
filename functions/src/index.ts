@@ -2,6 +2,14 @@ import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import Stripe from "stripe";
 import * as nodemailer from "nodemailer";
+import { randomUUID } from "crypto";
+import { initializeApp } from "firebase-admin/app";
+import { getAuth as getAdminAuth } from "firebase-admin/auth";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
+
+initializeApp();
+
+const db = getFirestore();
 
 /* ── Secrets (set with: firebase functions:secrets:set SECRET_NAME) ── */
 const STRIPE_SECRET = defineSecret("STRIPE_SECRET_KEY");
@@ -11,6 +19,13 @@ const EMAIL_USER    = defineSecret("EMAIL_USER");
 const EMAIL_PASS    = defineSecret("EMAIL_PASS");
 const EMAIL_FROM    = defineSecret("EMAIL_FROM");
 const GOOGLE_MAPS_API_KEY = defineSecret("GOOGLE_MAPS_API_KEY");
+const INSTAGRAM_ACCESS_TOKEN = defineSecret("INSTAGRAM_ACCESS_TOKEN");
+const INSTAGRAM_BUSINESS_ACCOUNT_ID = defineSecret("INSTAGRAM_BUSINESS_ACCOUNT_ID");
+const META_APP_ID = defineSecret("META_APP_ID");
+const META_APP_SECRET = defineSecret("META_APP_SECRET");
+
+const INSTAGRAM_SETTINGS_DOC = "integrations/instagram";
+const INSTAGRAM_OAUTH_STATES = "instagramOAuthStates";
 
 const ALLOWED_ORIGINS = [
   "https://tiptopbarbershop.nl",
@@ -41,6 +56,86 @@ interface PublicGoogleReview {
   publishTime?: string;
   relativeTimeDescription?: string;
   authorUrl?: string;
+}
+
+interface PublicInstagramMedia {
+  id: string;
+  mediaUrl: string;
+  caption: string;
+  permalink: string;
+  timestamp?: string;
+  mediaType?: string;
+}
+
+function applyCorsHeaders(req: { headers: { origin?: string } }, res: { set: (name: string, value: string) => void }) {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+  }
+
+  res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+}
+
+function handleCorsPreflight(
+  req: { method: string; headers: { origin?: string } },
+  res: { set: (name: string, value: string) => void; status: (code: number) => { send: (body: string) => void } }
+): boolean {
+  applyCorsHeaders(req, res);
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return true;
+  }
+
+  return false;
+}
+
+function buildFunctionUrl(functionName: string): string {
+  const projectId = process.env.GCLOUD_PROJECT;
+  if (!projectId) {
+    throw new Error("GCLOUD_PROJECT is not available.");
+  }
+
+  return `https://europe-west1-${projectId}.cloudfunctions.net/${functionName}`;
+}
+
+function isAllowedReturnUrl(url: string): boolean {
+  return ALLOWED_ORIGINS.some((origin) => url.startsWith(origin));
+}
+
+async function verifyRequestUser(req: { headers: { authorization?: string } }) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new Error("Missing authorization token.");
+  }
+
+  const idToken = authHeader.slice("Bearer ".length);
+  return getAdminAuth().verifyIdToken(idToken);
+}
+
+async function getInstagramIntegrationConfig(): Promise<{ accessToken: string; accountId: string; username?: string } | null> {
+  const snapshot = await db.doc(INSTAGRAM_SETTINGS_DOC).get();
+  const data = snapshot.data() as { accessToken?: string; accountId?: string; username?: string } | undefined;
+
+  if (data?.accessToken && data?.accountId) {
+    return {
+      accessToken: data.accessToken,
+      accountId: data.accountId,
+      username: data.username,
+    };
+  }
+
+  const fallbackToken = INSTAGRAM_ACCESS_TOKEN.value();
+  const fallbackAccountId = INSTAGRAM_BUSINESS_ACCOUNT_ID.value();
+  if (fallbackToken && fallbackAccountId) {
+    return {
+      accessToken: fallbackToken,
+      accountId: fallbackAccountId,
+    };
+  }
+
+  return null;
 }
 
 async function createStripeSession(booking: BookingPayload, baseUrl: string): Promise<{ sessionUrl: string | null }> {
@@ -322,6 +417,330 @@ export const getGoogleReviewsHttp = onRequest(
     } catch (error) {
       console.error("getGoogleReviewsHttp failed", error);
       res.status(500).json({ error: "Unable to load Google reviews." });
+    }
+  }
+);
+
+/* ── 4. Public Instagram Feed ─────────────────────────────────────── */
+export const getInstagramFeedHttp = onRequest(
+  {
+    secrets: [INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_BUSINESS_ACCOUNT_ID],
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
+  async (req, res) => {
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "method-not-allowed" });
+      return;
+    }
+
+    try {
+      const integration = await getInstagramIntegrationConfig();
+      if (!integration) {
+        res.status(500).json({ error: "Instagram credentials are missing." });
+        return;
+      }
+
+      const { accessToken, accountId, username } = integration;
+
+      const fields = [
+        "id",
+        "caption",
+        "media_type",
+        "media_url",
+        "permalink",
+        "thumbnail_url",
+        "timestamp",
+        "children{media_type,media_url,thumbnail_url}",
+      ].join(",");
+
+      const feedUrl = new URL(`https://graph.facebook.com/v22.0/${accountId}/media`);
+      feedUrl.searchParams.set("fields", fields);
+      feedUrl.searchParams.set("limit", "12");
+      feedUrl.searchParams.set("access_token", accessToken);
+
+      const feedResponse = await fetch(feedUrl.toString());
+      if (!feedResponse.ok) {
+        const errorText = await feedResponse.text();
+        console.error("Instagram feed request failed", errorText);
+        res.status(502).json({ error: "Failed to fetch Instagram feed." });
+        return;
+      }
+
+      const feedData = (await feedResponse.json()) as {
+        data?: Array<{
+          id?: string;
+          caption?: string;
+          media_type?: string;
+          media_url?: string;
+          permalink?: string;
+          thumbnail_url?: string;
+          timestamp?: string;
+          children?: {
+            data?: Array<{
+              media_type?: string;
+              media_url?: string;
+              thumbnail_url?: string;
+            }>;
+          };
+        }>;
+      };
+
+      const media: PublicInstagramMedia[] = (feedData.data ?? [])
+        .flatMap((item): PublicInstagramMedia[] => {
+          const childImage = item.children?.data?.find((child) => child.media_type === "IMAGE" || child.media_type === "CAROUSEL_ALBUM");
+          const mediaUrl = item.media_url || item.thumbnail_url || childImage?.media_url || childImage?.thumbnail_url;
+
+          if (!item.id || !item.permalink || !mediaUrl) {
+            return [];
+          }
+
+          return [{
+            id: item.id,
+            mediaUrl,
+            caption: item.caption ?? "",
+            permalink: item.permalink,
+            timestamp: item.timestamp,
+            mediaType: item.media_type,
+          }];
+        });
+
+      res.status(200).json({
+        profileUrl: "https://www.instagram.com/tiptopbarbershopnl/",
+        username: username || "tiptopbarbershopnl",
+        media,
+      });
+    } catch (error) {
+      console.error("getInstagramFeedHttp failed", error);
+      res.status(500).json({ error: "Unable to load Instagram feed." });
+    }
+  }
+);
+
+export const getInstagramConnectionStatusHttp = onRequest(
+  {
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
+  async (req, res) => {
+    if (handleCorsPreflight(req, res)) {
+      return;
+    }
+
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "method-not-allowed" });
+      return;
+    }
+
+    try {
+      applyCorsHeaders(req, res);
+      await verifyRequestUser(req);
+      const snapshot = await db.doc(INSTAGRAM_SETTINGS_DOC).get();
+      const data = snapshot.data() as { username?: string; connectedAt?: unknown } | undefined;
+
+      res.status(200).json({
+        connected: snapshot.exists,
+        username: data?.username ?? null,
+      });
+    } catch (error) {
+      console.error("getInstagramConnectionStatusHttp failed", error);
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  }
+);
+
+export const beginInstagramConnectionHttp = onRequest(
+  {
+    secrets: [META_APP_ID],
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
+  async (req, res) => {
+    if (handleCorsPreflight(req, res)) {
+      return;
+    }
+
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "method-not-allowed" });
+      return;
+    }
+
+    try {
+      applyCorsHeaders(req, res);
+      const decodedToken = await verifyRequestUser(req);
+      const { returnUrl } = req.body as { returnUrl?: string };
+
+      if (!returnUrl || !isAllowedReturnUrl(returnUrl)) {
+        res.status(400).json({ error: "Invalid returnUrl." });
+        return;
+      }
+
+      const state = randomUUID();
+      await db.collection(INSTAGRAM_OAUTH_STATES).doc(state).set({
+        uid: decodedToken.uid,
+        returnUrl,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      const appId = META_APP_ID.value();
+      if (!appId) {
+        res.status(500).json({ error: "Meta app id is missing." });
+        return;
+      }
+
+      const redirectUri = buildFunctionUrl("instagramOAuthCallbackHttp");
+      const authUrl = new URL("https://www.facebook.com/v22.0/dialog/oauth");
+      authUrl.searchParams.set("client_id", appId);
+      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set("state", state);
+      authUrl.searchParams.set("scope", "instagram_basic,pages_show_list,pages_read_engagement");
+
+      res.status(200).json({ authUrl: authUrl.toString() });
+    } catch (error) {
+      console.error("beginInstagramConnectionHttp failed", error);
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  }
+);
+
+export const disconnectInstagramConnectionHttp = onRequest(
+  {
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
+  async (req, res) => {
+    if (handleCorsPreflight(req, res)) {
+      return;
+    }
+
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "method-not-allowed" });
+      return;
+    }
+
+    try {
+      applyCorsHeaders(req, res);
+      await verifyRequestUser(req);
+      await db.doc(INSTAGRAM_SETTINGS_DOC).delete();
+      res.status(200).json({ ok: true });
+    } catch (error) {
+      console.error("disconnectInstagramConnectionHttp failed", error);
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  }
+);
+
+export const instagramOAuthCallbackHttp = onRequest(
+  {
+    secrets: [META_APP_ID, META_APP_SECRET],
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
+  async (req, res) => {
+    const code = typeof req.query.code === "string" ? req.query.code : null;
+    const state = typeof req.query.state === "string" ? req.query.state : null;
+
+    if (!code || !state) {
+      res.status(400).send("Missing Instagram OAuth callback parameters.");
+      return;
+    }
+
+    try {
+      const stateRef = db.collection(INSTAGRAM_OAUTH_STATES).doc(state);
+      const stateSnapshot = await stateRef.get();
+      const stateData = stateSnapshot.data() as { uid?: string; returnUrl?: string } | undefined;
+
+      if (!stateSnapshot.exists || !stateData?.uid || !stateData.returnUrl || !isAllowedReturnUrl(stateData.returnUrl)) {
+        res.status(400).send("Invalid or expired OAuth state.");
+        return;
+      }
+
+      const redirectUri = buildFunctionUrl("instagramOAuthCallbackHttp");
+      const appId = META_APP_ID.value();
+      const appSecret = META_APP_SECRET.value();
+
+      const shortTokenUrl = new URL("https://graph.facebook.com/v22.0/oauth/access_token");
+      shortTokenUrl.searchParams.set("client_id", appId);
+      shortTokenUrl.searchParams.set("client_secret", appSecret);
+      shortTokenUrl.searchParams.set("redirect_uri", redirectUri);
+      shortTokenUrl.searchParams.set("code", code);
+
+      const shortTokenResponse = await fetch(shortTokenUrl.toString());
+      if (!shortTokenResponse.ok) {
+        const errorText = await shortTokenResponse.text();
+        console.error("Instagram short token exchange failed", errorText);
+        res.redirect(`${stateData.returnUrl}?instagram=error`);
+        return;
+      }
+
+      const shortTokenData = (await shortTokenResponse.json()) as { access_token?: string };
+      if (!shortTokenData.access_token) {
+        res.redirect(`${stateData.returnUrl}?instagram=error`);
+        return;
+      }
+
+      const longTokenUrl = new URL("https://graph.facebook.com/v22.0/oauth/access_token");
+      longTokenUrl.searchParams.set("grant_type", "fb_exchange_token");
+      longTokenUrl.searchParams.set("client_id", appId);
+      longTokenUrl.searchParams.set("client_secret", appSecret);
+      longTokenUrl.searchParams.set("fb_exchange_token", shortTokenData.access_token);
+
+      const longTokenResponse = await fetch(longTokenUrl.toString());
+      if (!longTokenResponse.ok) {
+        const errorText = await longTokenResponse.text();
+        console.error("Instagram long token exchange failed", errorText);
+        res.redirect(`${stateData.returnUrl}?instagram=error`);
+        return;
+      }
+
+      const longTokenData = (await longTokenResponse.json()) as { access_token?: string };
+      if (!longTokenData.access_token) {
+        res.redirect(`${stateData.returnUrl}?instagram=error`);
+        return;
+      }
+
+      const accountsUrl = new URL("https://graph.facebook.com/v22.0/me/accounts");
+      accountsUrl.searchParams.set("fields", "name,instagram_business_account{id,username}");
+      accountsUrl.searchParams.set("access_token", longTokenData.access_token);
+
+      const accountsResponse = await fetch(accountsUrl.toString());
+      if (!accountsResponse.ok) {
+        const errorText = await accountsResponse.text();
+        console.error("Instagram account lookup failed", errorText);
+        res.redirect(`${stateData.returnUrl}?instagram=error`);
+        return;
+      }
+
+      const accountsData = (await accountsResponse.json()) as {
+        data?: Array<{
+          instagram_business_account?: { id?: string; username?: string };
+        }>;
+      };
+
+      const instagramAccount = accountsData.data?.find((entry) => entry.instagram_business_account?.id)?.instagram_business_account;
+      if (!instagramAccount?.id) {
+        res.redirect(`${stateData.returnUrl}?instagram=no-account`);
+        return;
+      }
+
+      await db.doc(INSTAGRAM_SETTINGS_DOC).set({
+        accessToken: longTokenData.access_token,
+        accountId: instagramAccount.id,
+        username: instagramAccount.username ?? "tiptopbarbershopnl",
+        connectedByUid: stateData.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      await stateRef.delete();
+      res.redirect(`${stateData.returnUrl}?instagram=connected`);
+    } catch (error) {
+      console.error("instagramOAuthCallbackHttp failed", error);
+      res.status(500).send("Instagram connection failed.");
     }
   }
 );

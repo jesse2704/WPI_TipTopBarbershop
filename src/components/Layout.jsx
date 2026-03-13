@@ -200,15 +200,19 @@ export default function Layout() {
               <div className="flex flex-col gap-2.5 text-sm text-white/40">
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>{txt('Ma – Vr: 9:00 – 20:00', 'Mon – Fri: 9AM – 8PM')}</span>
+                  <span>{txt('Di – Vr: 12:00 – 20:00', 'Tue – Fri: 12PM – 8PM')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>{txt('Zaterdag: 9:00 – 18:00', 'Saturday: 9AM – 6PM')}</span>
+                  <span>{txt('Zaterdag: 12:00 – 18:00', 'Saturday: 12PM – 6PM')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>{txt('Zondag: 10:00 – 16:00', 'Sunday: 10AM – 4PM')}</span>
+                  <span>{txt('Zondag: 12:00 – 16:00', 'Sunday: 12PM – 4PM')}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{txt('Maandag: Gesloten', 'Monday: Closed')}</span>
                 </div>
               </div>
             </div>

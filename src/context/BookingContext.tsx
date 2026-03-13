@@ -32,7 +32,7 @@ const BREAK_STORAGE_KEY = "tiptop_break_minutes";
 const DEFAULT_BREAK_MINUTES = 15;
 const MAX_BREAK_MINUTES = 120;
 const SHOP_CLOSE_MINUTES = 18 * 60;
-const CLOSED_WEEK_DAYS = new Set([0, 1]); // Sunday + Monday
+const CLOSED_WEEK_DAYS = new Set([1]); // Monday only
 
 function createStableId(): string {
   if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
@@ -43,12 +43,6 @@ function createStableId(): string {
 }
 
 export const WORKING_TIME_SLOTS = [
-  "09:00",
-  "09:30",
-  "10:00",
-  "10:30",
-  "11:00",
-  "11:30",
   "12:00",
   "12:30",
   "13:00",

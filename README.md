@@ -67,6 +67,10 @@ firebase functions:secrets:set STRIPE_SECRET_KEY
 firebase functions:secrets:set EMAIL_HOST
 firebase functions:secrets:set EMAIL_PORT
 firebase functions:secrets:set EMAIL_USER
+firebase functions:secrets:set META_APP_ID
+firebase functions:secrets:set META_APP_SECRET
+firebase functions:secrets:set INSTAGRAM_ACCESS_TOKEN
+firebase functions:secrets:set INSTAGRAM_BUSINESS_ACCOUNT_ID
 firebase functions:secrets:set EMAIL_PASS
 firebase functions:secrets:set EMAIL_FROM
 firebase functions:secrets:set GOOGLE_MAPS_API_KEY
@@ -99,6 +103,7 @@ Main file:
 - route set: /Home, /Services, /Gallery, /About, /Contact
 - shared premium brand styling
 - testimonials can load live Google reviews through cloud function with fallback
+- gallery can load live Instagram media through cloud function with fallback
 
 Main files:
 - src/components/home/*
@@ -107,6 +112,51 @@ Main files:
 - src/pages/Gallery.jsx
 - src/pages/About.jsx
 - src/pages/Contact.jsx
+
+### Instagram gallery feed
+
+The gallery supports a live Instagram feed through the official Instagram Graph API.
+
+Requirements:
+- Instagram account must be a Business or Creator account
+- account must be connected to a Facebook Page
+- a Meta app must be configured with Instagram Graph API access
+- barber connects Instagram from the barber dashboard
+
+Secrets used by the backend:
+- META_APP_ID
+- META_APP_SECRET
+- INSTAGRAM_ACCESS_TOKEN
+- INSTAGRAM_BUSINESS_ACCOUNT_ID
+
+Backend endpoint:
+- functions/src/index.ts
+- public function: getInstagramFeedHttp
+
+Frontend consumer:
+- src/pages/Gallery.jsx
+
+Behavior:
+- barber can initiate Instagram connection directly from the barber dashboard
+- OAuth callback stores the connected Instagram business account in backend storage
+- when Instagram credentials are configured and the endpoint is deployed, the gallery uses live Instagram media
+- when Instagram credentials are missing or the API is unavailable, the gallery falls back to the built-in showcase items
+
+Recommended setup flow:
+1. Convert the Instagram account to Business or Creator if needed.
+2. Connect it to the correct Facebook Page.
+3. Create a Meta app and enable Instagram Graph API.
+4. Set META_APP_ID and META_APP_SECRET as Firebase function secrets.
+5. Deploy functions.
+6. Open the barber dashboard and click Connect Instagram.
+7. Complete the Meta login/authorization flow.
+
+Example deployment:
+
+```bash
+cd functions
+npm run deploy
+```
 
 ### Barber operations
 

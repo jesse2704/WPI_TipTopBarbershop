@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   DragDropContext,
@@ -7,6 +7,8 @@ import {
   type DropResult,
 } from "@hello-pangea/dnd";
 import { useBooking, WORKING_TIME_SLOTS } from "../context/BookingContext";
+import { app } from "../lib/firebase";
+import { useAuth } from "../context/AuthContext";
 import { services } from "../data/services";
 import type { Appointment } from "../types";
 
@@ -44,6 +46,15 @@ function formatDateLabel(iso: string): string {
   });
 }
 
+function getFunctionsBaseUrl(): string {
+  const projectId = app.options.projectId;
+  if (!projectId) {
+    throw new Error("Firebase projectId is missing from app configuration.");
+  }
+
+  return `https://europe-west1-${projectId}.cloudfunctions.net`;
+}
+
 /* ── status badge ────────────────────────────────────────────── */
 
 const statusColors: Record<Appointment["status"], string> = {
@@ -71,6 +82,7 @@ function StatusBadge({ status }: { status: Appointment["status"] }) {
 /* ── main component ──────────────────────────────────────────── */
 
 export default function BarberDashboardPage() {
+  const { user } = useAuth();
   const {
     getAppointmentsByDate,
     updateAppointment,
@@ -86,6 +98,54 @@ export default function BarberDashboardPage() {
     type: "error" | "success";
     message: string;
   } | null>(null);
+  const [instagramState, setInstagramState] = useState<{ connected: boolean; username: string | null }>({ connected: false, username: null });
+  const [instagramBusy, setInstagramBusy] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInstagramStatus = async () => {
+      if (!user) return;
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch(`${getFunctionsBaseUrl()}/getInstagramConnectionStatusHttp`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!isMounted) return;
+        setInstagramState({ connected: Boolean(data.connected), username: data.username ?? null });
+      } catch {
+        // Ignore dashboard integration status fetch failures.
+      }
+    };
+
+    loadInstagramStatus();
+
+    const params = new URLSearchParams(window.location.search);
+    const instagramParam = params.get("instagram");
+    if (instagramParam && isMounted) {
+      if (instagramParam === "connected") {
+        setFeedback({ type: "success", message: "Instagram connected successfully." });
+      } else if (instagramParam === "no-account") {
+        setFeedback({ type: "error", message: "No Instagram business account was found on the connected Meta page." });
+      } else if (instagramParam === "error") {
+        setFeedback({ type: "error", message: "Instagram connection failed. Please try again." });
+      }
+      params.delete("instagram");
+      const query = params.toString();
+      const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}`;
+      window.history.replaceState({}, "", nextUrl);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const dayAppointments = getAppointmentsByDate(selectedDate);
 
@@ -152,6 +212,63 @@ export default function BarberDashboardPage() {
   const finishSession = () => {
     if (currentAppointment) {
       updateAppointment(currentAppointment.id, { status: "completed" });
+    }
+  };
+
+  const connectInstagram = async () => {
+    if (!user) return;
+    setInstagramBusy(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${getFunctionsBaseUrl()}/beginInstagramConnectionHttp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ returnUrl: `${window.location.origin}/barber/dashboard` }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.authUrl) {
+        throw new Error(data?.error || "Unable to start Instagram connection.");
+      }
+
+      window.location.href = data.authUrl;
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Unable to start Instagram connection.",
+      });
+      setInstagramBusy(false);
+    }
+  };
+
+  const disconnectInstagram = async () => {
+    if (!user) return;
+    setInstagramBusy(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${getFunctionsBaseUrl()}/disconnectInstagramConnectionHttp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to disconnect Instagram.");
+      }
+
+      setInstagramState({ connected: false, username: null });
+      setFeedback({ type: "success", message: "Instagram disconnected." });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Unable to disconnect Instagram.",
+      });
+    } finally {
+      setInstagramBusy(false);
     }
   };
 
@@ -276,6 +393,44 @@ export default function BarberDashboardPage() {
             {feedback.message}
           </div>
         )}
+
+        <div className="bg-stark-white rounded-xl border border-slate-grey/15 shadow-sm px-5 py-4 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.35em] text-antique-gold" style={accentFont}>
+              Instagram Integration
+            </p>
+            <h3 className="mt-1 text-lg font-bold text-deep-black" style={headingFont}>
+              {instagramState.connected ? `Connected as @${instagramState.username ?? "tiptopbarbershopnl"}` : "Connect the shop Instagram"}
+            </h3>
+            <p className="text-sm text-slate-grey mt-1" style={accentFont}>
+              {instagramState.connected
+                ? "The gallery will use the connected Instagram feed automatically."
+                : "Connect once here and the gallery feed will start syncing without manual secrets from the barber side."}
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            {instagramState.connected ? (
+              <button
+                onClick={disconnectInstagram}
+                disabled={instagramBusy}
+                className="px-4 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors text-sm font-semibold"
+                style={headingFont}
+              >
+                {instagramBusy ? "Disconnecting..." : "Disconnect Instagram"}
+              </button>
+            ) : (
+              <button
+                onClick={connectInstagram}
+                disabled={instagramBusy}
+                className="px-4 py-2 rounded-lg bg-antique-gold text-deep-black hover:bg-[#b49149] disabled:opacity-50 transition-colors text-sm font-semibold"
+                style={headingFont}
+              >
+                {instagramBusy ? "Connecting..." : "Connect Instagram"}
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* ── Currently in chair ────────────────────────────────── */}
         {currentAppointment && (

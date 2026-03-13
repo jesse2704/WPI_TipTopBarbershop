@@ -15,6 +15,14 @@ interface YouTubeState {
 const STORAGE_KEY = "tiptop_youtube";
 const CHANNEL_NAME = "tiptop_youtube_channel";
 
+function createStableId(): string {
+  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `ttb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function loadState(): YouTubeState {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
@@ -73,7 +81,7 @@ export function useYouTubeQueue() {
     (videoId: string, title: string) => {
       setState((prev) => {
         const newItem: VideoQueueItem = {
-          id: crypto.randomUUID(),
+          id: createStableId(),
           videoId,
           title,
           addedAt: new Date().toISOString(),

@@ -34,6 +34,14 @@ const MAX_BREAK_MINUTES = 120;
 const SHOP_CLOSE_MINUTES = 18 * 60;
 const CLOSED_WEEK_DAYS = new Set([0, 1]); // Sunday + Monday
 
+function createStableId(): string {
+  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `ttb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export const WORKING_TIME_SLOTS = [
   "09:00",
   "09:30",
@@ -116,7 +124,7 @@ function createDummyAppointments(): Appointment[] {
 
   return [
     {
-      id: crypto.randomUUID(),
+      id: createStableId(),
       customerName: "Michael Carter",
       phoneNumber: "(555) 201-4401",
       serviceId: "haircut-and-beard",
@@ -126,7 +134,7 @@ function createDummyAppointments(): Appointment[] {
       createdAt,
     },
     {
-      id: crypto.randomUUID(),
+      id: createStableId(),
       customerName: "Jason Reed",
       phoneNumber: "(555) 304-1189",
       serviceId: "classic-cut",
@@ -136,7 +144,7 @@ function createDummyAppointments(): Appointment[] {
       createdAt,
     },
     {
-      id: crypto.randomUUID(),
+      id: createStableId(),
       customerName: "Andre Brooks",
       phoneNumber: "(555) 412-7734",
       serviceId: "beard-trim",
@@ -146,7 +154,7 @@ function createDummyAppointments(): Appointment[] {
       createdAt,
     },
     {
-      id: crypto.randomUUID(),
+      id: createStableId(),
       customerName: "Ethan Miles",
       phoneNumber: "(555) 505-2290",
       serviceId: "hot-towel-shave",
@@ -156,7 +164,7 @@ function createDummyAppointments(): Appointment[] {
       createdAt,
     },
     {
-      id: crypto.randomUUID(),
+      id: createStableId(),
       customerName: "Noah Bennett",
       phoneNumber: "(555) 606-9104",
       serviceId: "buzz-cut",

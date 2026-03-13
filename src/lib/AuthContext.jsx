@@ -2,6 +2,26 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 
 import { appParams } from '@/lib/app-params';
 
+const db = globalThis.__B44_DB__ || {
+  auth: {
+    me: async () => null,
+    logout: () => undefined,
+    redirectToLogin: () => undefined,
+  },
+};
+
+const createAxiosClient =
+  globalThis.__B44_CREATE_AXIOS_CLIENT__ ||
+  ((config = {}) => ({
+    get: async () => {
+      const error = new Error('App client is not configured');
+      error.status = 503;
+      error.data = { extra_data: { reason: 'auth_required' } };
+      throw error;
+    },
+    config,
+  }));
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -92,7 +112,7 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       const currentUser = await db.auth.me();
       setUser(currentUser);
-      setIsAuthenticated(true);
+      setIsAuthenticated(!!currentUser);
       setIsLoadingAuth(false);
     } catch (error) {
       console.error('User auth check failed:', error);

@@ -11,6 +11,13 @@ const EMAIL_USER    = defineSecret("EMAIL_USER");
 const EMAIL_PASS    = defineSecret("EMAIL_PASS");
 const EMAIL_FROM    = defineSecret("EMAIL_FROM");
 
+const ALLOWED_ORIGINS = [
+  "https://tiptopbarbershop.nl",
+  "https://www.tiptopbarbershop.nl",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
 /* ── Types ─────────────────────────────────────────────────────────── */
 interface BookingPayload {
   customerName: string;
@@ -26,7 +33,7 @@ interface BookingPayload {
 
 /* ── 1. Create Stripe Checkout Session ─────────────────────────────── */
 export const createCheckoutSession = onCall(
-  { secrets: [STRIPE_SECRET], region: "europe-west1" },
+  { secrets: [STRIPE_SECRET], region: "europe-west1", cors: ALLOWED_ORIGINS },
   async (req) => {
     const { booking, baseUrl } = req.data as {
       booking: BookingPayload;
@@ -80,6 +87,7 @@ export const verifyPaymentAndEmail = onCall(
   {
     secrets: [STRIPE_SECRET, EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM],
     region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
   },
   async (req) => {
     const { sessionId } = req.data as { sessionId: string };

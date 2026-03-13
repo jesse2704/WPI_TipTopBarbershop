@@ -19,8 +19,6 @@ const EMAIL_USER    = defineSecret("EMAIL_USER");
 const EMAIL_PASS    = defineSecret("EMAIL_PASS");
 const EMAIL_FROM    = defineSecret("EMAIL_FROM");
 const GOOGLE_MAPS_API_KEY = defineSecret("GOOGLE_MAPS_API_KEY");
-const INSTAGRAM_ACCESS_TOKEN = defineSecret("INSTAGRAM_ACCESS_TOKEN");
-const INSTAGRAM_BUSINESS_ACCOUNT_ID = defineSecret("INSTAGRAM_BUSINESS_ACCOUNT_ID");
 const META_APP_ID = defineSecret("META_APP_ID");
 const META_APP_SECRET = defineSecret("META_APP_SECRET");
 
@@ -123,15 +121,6 @@ async function getInstagramIntegrationConfig(): Promise<{ accessToken: string; a
       accessToken: data.accessToken,
       accountId: data.accountId,
       username: data.username,
-    };
-  }
-
-  const fallbackToken = INSTAGRAM_ACCESS_TOKEN.value();
-  const fallbackAccountId = INSTAGRAM_BUSINESS_ACCOUNT_ID.value();
-  if (fallbackToken && fallbackAccountId) {
-    return {
-      accessToken: fallbackToken,
-      accountId: fallbackAccountId,
     };
   }
 
@@ -424,18 +413,22 @@ export const getGoogleReviewsHttp = onRequest(
 /* ── 4. Public Instagram Feed ─────────────────────────────────────── */
 export const getInstagramFeedHttp = onRequest(
   {
-    secrets: [INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_BUSINESS_ACCOUNT_ID],
     region: "europe-west1",
     cors: ALLOWED_ORIGINS,
     invoker: "public",
   },
   async (req, res) => {
+    if (handleCorsPreflight(req, res)) {
+      return;
+    }
+
     if (req.method !== "GET") {
       res.status(405).json({ error: "method-not-allowed" });
       return;
     }
 
     try {
+      applyCorsHeaders(req, res);
       const integration = await getInstagramIntegrationConfig();
       if (!integration) {
         res.status(500).json({ error: "Instagram credentials are missing." });

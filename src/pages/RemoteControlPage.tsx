@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Button, TextInput } from "flowbite-react";
 import { useYouTubeQueue } from "../hooks/useYouTubeQueue";
 
 function extractVideoId(input: string): string | null {
@@ -60,15 +59,18 @@ export default function RemoteControlPage() {
       )
     : queue;
 
+  const inputClass =
+    "w-full px-4 py-3 rounded-lg border border-slate-grey/40 bg-deep-black text-vintage-cream placeholder-slate-grey/50 focus:outline-none focus:ring-2 focus:ring-antique-gold focus:border-antique-gold transition-colors";
+
   return (
     <div className="min-h-screen bg-deep-black text-vintage-cream">
       {/* Header */}
-      <header className="bg-deep-black border-b border-slate-grey/30 px-4 py-5 text-center">
+      <header className="border-b border-slate-grey/30 px-4 py-5 text-center">
         <h1 className="text-2xl font-bold font-heading tracking-wider">
           TIP TOP{" "}
           <span className="text-antique-gold">MUSIC</span>
         </h1>
-        <p className="text-slate-grey text-sm mt-1">
+        <p className="text-vintage-cream/40 text-sm mt-1">
           Add your favourite tunes to the barbershop playlist
         </p>
       </header>
@@ -83,39 +85,32 @@ export default function RemoteControlPage() {
             Add a Video
           </h2>
 
-          <div>
-            <TextInput
-              placeholder="Paste YouTube URL..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              required
-              className="[&_input]:bg-deep-black [&_input]:border-slate-grey/40 [&_input]:text-vintage-cream [&_input]:placeholder-slate-grey"
-            />
-          </div>
+          <input
+            type="url"
+            placeholder="Paste YouTube URL..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            required
+            className={inputClass}
+          />
 
-          <div>
-            <TextInput
-              placeholder="Title (optional)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="[&_input]:bg-deep-black [&_input]:border-slate-grey/40 [&_input]:text-vintage-cream [&_input]:placeholder-slate-grey"
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="Title (optional)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className={inputClass}
+          />
 
-          {error && (
-            <p className="text-red-400 text-sm">{error}</p>
-          )}
-          {success && (
-            <p className="text-green-400 text-sm">{success}</p>
-          )}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {success && <p className="text-green-400 text-sm">{success}</p>}
 
-          <Button
+          <button
             type="submit"
-            size="lg"
-            className="w-full bg-antique-gold hover:bg-amber-600 text-deep-black font-heading border-0 focus:ring-antique-gold"
+            className="w-full py-3 px-6 bg-antique-gold hover:bg-amber-500 text-deep-black font-heading font-bold rounded-lg transition-colors"
           >
             Add to Queue
-          </Button>
+          </button>
         </form>
 
         {/* Now Playing */}
@@ -164,9 +159,7 @@ export default function RemoteControlPage() {
                     {idx + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-heading text-sm truncate">
-                      {video.title}
-                    </p>
+                    <p className="font-heading text-sm truncate">{video.title}</p>
                   </div>
                   <div className="flex gap-1">
                     <button

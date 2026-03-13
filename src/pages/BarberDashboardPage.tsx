@@ -1,235 +1,405 @@
 import { useState } from "react";
-import { Button, Card, Modal, ModalHeader, ModalBody } from "flowbite-react";
-import { useBooking } from "../context/BookingContext";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  type DropResult,
+} from "@hello-pangea/dnd";
+import { useBooking, WORKING_TIME_SLOTS } from "../context/BookingContext";
 import { services } from "../data/services";
 import type { Appointment } from "../types";
 
-function getServiceName(serviceId: string): string {
-  return services.find((s) => s.id === serviceId)?.name ?? serviceId;
+/* ── helpers ─────────────────────────────────────────────────── */
+
+function getServiceName(id: string): string {
+  return services.find((s) => s.id === id)?.name ?? id;
+}
+
+function getServiceDuration(id: string): number {
+  return services.find((s) => s.id === id)?.duration ?? 30;
 }
 
 function formatTime(time: string): string {
   const [h, m] = time.split(":");
   const hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 || 12;
-  return `${displayHour}:${m} ${ampm}`;
+  return `${hour % 12 || 12}:${m} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
+function addDays(dateString: string, n: number): string {
+  const d = new Date(dateString);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split("T")[0];
+}
+
+function formatDateLabel(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+/* ── status badge ────────────────────────────────────────────── */
+
+const statusColors: Record<Appointment["status"], string> = {
+  booked: "bg-blue-100 text-blue-800",
+  "in-progress": "bg-antique-gold/20 text-amber-800",
+  completed: "bg-green-100 text-green-800",
+};
+
+function StatusBadge({ status }: { status: Appointment["status"] }) {
+  const label =
+    status === "in-progress"
+      ? "In Progress"
+      : status.charAt(0).toUpperCase() + status.slice(1);
+
+  return (
+    <span
+      className={`text-[10px] font-heading px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[status]}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+/* ── main component ──────────────────────────────────────────── */
+
 export default function BarberDashboardPage() {
-  const { getAppointmentsByDate, updateAppointment } = useBooking();
-  const [showModal, setShowModal] = useState(false);
-  const [endingAppointment, setEndingAppointment] =
-    useState<Appointment | null>(null);
-  const [paymentSent, setPaymentSent] = useState(false);
+  const {
+    getAppointmentsByDate,
+    updateAppointment,
+    breakMinutes,
+    setBreakMinutes,
+    getAvailableTimeSlots,
+    rescheduleAppointment,
+  } = useBooking();
 
   const today = new Date().toISOString().split("T")[0];
-  const todayAppointments = getAppointmentsByDate(today);
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [feedback, setFeedback] = useState<{
+    type: "error" | "success";
+    message: string;
+  } | null>(null);
 
-  const currentAppointment = todayAppointments.find(
+  const dayAppointments = getAppointmentsByDate(selectedDate);
+
+  const currentAppointment = dayAppointments.find(
     (a) => a.status === "in-progress"
   );
-  const nextBookedAppointment = todayAppointments.find(
+  const nextBookedAppointment = dayAppointments.find(
     (a) => a.status === "booked"
   );
 
-  const handleStartSession = () => {
+  /* Build a map: timeSlot → appointment (if any) */
+  const slotMap = new Map<string, Appointment>();
+  for (const appt of dayAppointments) {
+    slotMap.set(appt.timeSlot, appt);
+  }
+
+  /* ── Drag handler ───────────────────────────────────────────── */
+
+  const onDragEnd = (result: DropResult) => {
+    const { draggableId, destination } = result;
+    if (!destination) return;
+
+    const targetSlot = destination.droppableId; // e.g. "slot-10:30"
+    const newTime = targetSlot.replace("slot-", "");
+    const appointment = dayAppointments.find((a) => a.id === draggableId);
+    if (!appointment) return;
+
+    // Same slot — no-op
+    if (appointment.timeSlot === newTime) return;
+
+    // Completed appointments can't move
+    if (appointment.status === "completed") {
+      setFeedback({
+        type: "error",
+        message: "Completed appointments cannot be moved.",
+      });
+      return;
+    }
+
+    const ok = rescheduleAppointment(appointment.id, selectedDate, newTime);
+
+    if (!ok) {
+      setFeedback({
+        type: "error",
+        message: `Cannot move to ${formatTime(newTime)} — slot unavailable (service duration + break overlap).`,
+      });
+    } else {
+      setFeedback({
+        type: "success",
+        message: `${appointment.customerName} moved to ${formatTime(newTime)}.`,
+      });
+      setTimeout(() => setFeedback(null), 3000);
+    }
+  };
+
+  /* ── Session controls ───────────────────────────────────────── */
+
+  const startSession = () => {
     if (nextBookedAppointment) {
       updateAppointment(nextBookedAppointment.id, { status: "in-progress" });
     }
   };
 
-  const handleEndSession = () => {
+  const finishSession = () => {
     if (currentAppointment) {
-      setEndingAppointment(currentAppointment);
-      setPaymentSent(false);
-      setShowModal(true);
+      updateAppointment(currentAppointment.id, { status: "completed" });
     }
   };
 
-  const handleCashPayment = () => {
-    if (endingAppointment) {
-      updateAppointment(endingAppointment.id, { status: "completed" });
-    }
-    setShowModal(false);
-    setEndingAppointment(null);
-  };
-
-  const handlePaymentLink = () => {
-    if (endingAppointment) {
-      setPaymentSent(true);
-      // Simulate sending SMS after a short delay
-      setTimeout(() => {
-        updateAppointment(endingAppointment.id, { status: "completed" });
-        setShowModal(false);
-        setEndingAppointment(null);
-        setPaymentSent(false);
-      }, 2000);
-    }
-  };
-
-  const statusBadge = (status: Appointment["status"]) => {
-    const colors = {
-      booked: "bg-blue-100 text-blue-800",
-      "in-progress": "bg-antique-gold/20 text-amber-800",
-      completed: "bg-green-100 text-green-800",
-    };
-    return (
-      <span
-        className={`text-xs font-heading px-2 py-1 rounded-full ${colors[status]}`}
-      >
-        {status === "in-progress" ? "In Progress" : status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    );
-  };
+  /* ── Render ─────────────────────────────────────────────────── */
 
   return (
-    <div className="min-h-screen bg-vintage-cream py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-vintage-cream py-6 px-4 md:py-10">
+      <div className="max-w-4xl mx-auto space-y-5">
+        {/* ── Header ────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-deep-black">Dashboard</h1>
+            <h1 className="text-3xl font-bold text-deep-black font-heading">
+              Barber Dashboard
+            </h1>
             <p className="text-slate-grey text-sm mt-1">
-              Today&apos;s Agenda &mdash;{" "}
-              {new Date().toLocaleDateString("en-US", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+              Drag &amp; drop appointments between time slots.
             </p>
           </div>
-          <div className="flex gap-3">
-            <Button
-              onClick={handleStartSession}
-              disabled={!nextBookedAppointment || !!currentAppointment}
-              className="bg-green-600 hover:bg-green-700 text-white font-heading border-0 focus:ring-green-400 disabled:opacity-50"
-            >
-              Start Session
-            </Button>
-            <Button
-              onClick={handleEndSession}
-              disabled={!currentAppointment}
-              className="bg-red-600 hover:bg-red-700 text-white font-heading border-0 focus:ring-red-400 disabled:opacity-50"
-            >
-              End Session
-            </Button>
+
+          {/* Break setting */}
+          <div className="bg-stark-white rounded-xl border border-slate-grey/15 shadow-sm px-4 py-3 flex items-center gap-3">
+            <label className="text-sm font-heading font-semibold text-deep-black whitespace-nowrap">
+              Break
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={120}
+              step={5}
+              value={breakMinutes}
+              onChange={(e) => setBreakMinutes(Number(e.target.value))}
+              className="w-16 px-2 py-1.5 rounded-lg border border-slate-grey/30 bg-stark-white text-deep-black text-center focus:outline-none focus:ring-2 focus:ring-antique-gold"
+            />
+            <span className="text-xs text-slate-grey">min</span>
           </div>
         </div>
 
-        {/* Current Client Highlight */}
-        {currentAppointment && (
-          <Card className="mb-6 border-2 border-antique-gold bg-antique-gold/5 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-antique-gold font-heading uppercase tracking-wider mb-1">
-                  Currently in Chair
-                </p>
-                <h3 className="text-xl font-bold text-deep-black font-heading">
-                  {currentAppointment.customerName}
-                </h3>
-                <p className="text-slate-grey text-sm">
-                  {getServiceName(currentAppointment.serviceId)} &bull;{" "}
-                  {formatTime(currentAppointment.timeSlot)}
-                </p>
-              </div>
-              {statusBadge(currentAppointment.status)}
-            </div>
-          </Card>
-        )}
+        {/* ── Day navigation ────────────────────────────────────── */}
+        <div className="bg-stark-white rounded-xl border border-slate-grey/15 shadow-sm px-4 py-3 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+            className="p-2 rounded-lg hover:bg-slate-grey/10 transition-colors"
+            aria-label="Previous day"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
 
-        {/* Today's Appointments */}
-        {todayAppointments.length === 0 ? (
-          <Card className="text-center bg-stark-white">
-            <p className="text-slate-grey text-lg py-8">
-              No appointments scheduled for today.
+          <div className="flex-1 text-center">
+            <p className="text-lg font-bold font-heading text-deep-black">
+              {formatDateLabel(selectedDate)}
             </p>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {todayAppointments.map((appointment) => (
-              <Card
-                key={appointment.id}
-                className={`bg-stark-white ${
-                  appointment.status === "in-progress"
-                    ? "border-2 border-antique-gold"
-                    : appointment.status === "completed"
-                      ? "opacity-60"
-                      : ""
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="text-center min-w-[60px]">
-                      <p className="text-lg font-bold font-heading text-deep-black">
-                        {formatTime(appointment.timeSlot)}
-                      </p>
-                    </div>
-                    <div className="border-l border-slate-grey/20 pl-4">
-                      <h3 className="font-bold text-deep-black font-heading">
-                        {appointment.customerName}
-                      </h3>
-                      <p className="text-slate-grey text-sm">
-                        {getServiceName(appointment.serviceId)} &bull;{" "}
-                        {appointment.phoneNumber}
-                      </p>
-                    </div>
-                  </div>
-                  {statusBadge(appointment.status)}
-                </div>
-              </Card>
-            ))}
+            {selectedDate === today && (
+              <span className="text-xs text-antique-gold font-heading uppercase tracking-wider">
+                Today
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+            className="p-2 rounded-lg hover:bg-slate-grey/10 transition-colors"
+            aria-label="Next day"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          {selectedDate !== today && (
+            <button
+              onClick={() => setSelectedDate(today)}
+              className="ml-2 px-3 py-1.5 text-xs font-heading font-semibold rounded-lg border border-antique-gold text-antique-gold hover:bg-antique-gold/10 transition-colors"
+            >
+              Today
+            </button>
+          )}
+
+          <div className="ml-auto flex gap-2">
+            <button
+              onClick={startSession}
+              disabled={!nextBookedAppointment || !!currentAppointment}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-heading font-semibold rounded-lg transition-colors text-sm"
+            >
+              Start
+            </button>
+            <button
+              onClick={finishSession}
+              disabled={!currentAppointment}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-heading font-semibold rounded-lg transition-colors text-sm"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+
+        {/* ── Feedback banner ───────────────────────────────────── */}
+        {feedback && (
+          <div
+            className={`rounded-lg px-4 py-3 text-sm border ${
+              feedback.type === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-green-200 bg-green-50 text-green-700"
+            }`}
+          >
+            {feedback.message}
           </div>
         )}
-      </div>
 
-      {/* End Session Modal */}
-      <Modal show={showModal} onClose={() => setShowModal(false)} size="md">
-        <ModalHeader>
-          <span className="font-heading">Complete Session</span>
-        </ModalHeader>
-        <ModalBody>
-          {endingAppointment && (
-            <div className="text-center">
-              <p className="text-slate-grey mb-1">Session for</p>
-              <p className="text-xl font-bold text-deep-black font-heading mb-1">
-                {endingAppointment.customerName}
+        {/* ── Currently in chair ────────────────────────────────── */}
+        {currentAppointment && (
+          <div className="bg-antique-gold/5 border-2 border-antique-gold rounded-xl px-5 py-4 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-antique-gold font-heading uppercase tracking-widest mb-0.5">
+                Currently in Chair
               </p>
-              <p className="text-sm text-slate-grey mb-6">
-                {getServiceName(endingAppointment.serviceId)}
+              <h3 className="text-lg font-bold text-deep-black font-heading">
+                {currentAppointment.customerName}
+              </h3>
+              <p className="text-slate-grey text-sm">
+                {getServiceName(currentAppointment.serviceId)} &bull;{" "}
+                {formatTime(currentAppointment.timeSlot)}
               </p>
-
-              {paymentSent ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-green-700 font-heading">
-                    ✓ Payment link sent to {endingAppointment.phoneNumber}
-                  </p>
-                  <p className="text-green-600 text-sm mt-1">
-                    Marking as completed...
-                  </p>
-                </div>
-              ) : (
-                <div className="flex gap-4 justify-center">
-                  <Button
-                    onClick={handleCashPayment}
-                    size="lg"
-                    className="bg-green-600 hover:bg-green-700 text-white font-heading border-0 focus:ring-green-400"
-                  >
-                    💵 Cash
-                  </Button>
-                  <Button
-                    onClick={handlePaymentLink}
-                    size="lg"
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-heading border-0 focus:ring-blue-400"
-                  >
-                    📱 Payment Link
-                  </Button>
-                </div>
-              )}
             </div>
-          )}
-        </ModalBody>
-      </Modal>
+            <StatusBadge status={currentAppointment.status} />
+          </div>
+        )}
+
+        {/* ── Timeline (drag-and-drop) ──────────────────────────── */}
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="bg-stark-white rounded-xl border border-slate-grey/15 shadow-sm overflow-hidden">
+            {WORKING_TIME_SLOTS.map((slot) => {
+              const appointment = slotMap.get(slot);
+              const isAvailable =
+                !appointment &&
+                getAvailableTimeSlots(selectedDate, "classic-cut").includes(slot);
+
+              return (
+                <Droppable droppableId={`slot-${slot}`} key={slot}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`flex items-stretch border-b border-slate-grey/10 last:border-b-0 transition-colors min-h-[64px] ${
+                        snapshot.isDraggingOver
+                          ? "bg-antique-gold/10"
+                          : appointment
+                            ? ""
+                            : "bg-slate-grey/[0.02]"
+                      }`}
+                    >
+                      {/* Time gutter */}
+                      <div className="w-20 md:w-24 shrink-0 flex items-center justify-center border-r border-slate-grey/10 select-none">
+                        <span className="text-xs font-heading font-semibold text-slate-grey">
+                          {formatTime(slot)}
+                        </span>
+                      </div>
+
+                      {/* Slot content */}
+                      <div className="flex-1 px-3 py-2 flex items-center">
+                        {appointment ? (
+                          <Draggable
+                            draggableId={appointment.id}
+                            index={0}
+                            isDragDisabled={appointment.status === "completed"}
+                          >
+                            {(dragProvided, dragSnapshot) => (
+                              <div
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                {...dragProvided.dragHandleProps}
+                                className={`w-full rounded-lg px-4 py-3 flex items-center justify-between gap-3 select-none transition-shadow ${
+                                  appointment.status === "completed"
+                                    ? "bg-slate-grey/5 opacity-50 cursor-default"
+                                    : appointment.status === "in-progress"
+                                      ? "bg-antique-gold/10 border-2 border-antique-gold cursor-grab"
+                                      : "bg-blue-50 border border-blue-200 cursor-grab hover:shadow-md"
+                                } ${dragSnapshot.isDragging ? "shadow-xl ring-2 ring-antique-gold/50 rotate-1" : ""}`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  {/* Drag handle icon */}
+                                  {appointment.status !== "completed" && (
+                                    <svg
+                                      className="w-4 h-4 text-slate-grey/40 shrink-0"
+                                      fill="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle cx="9" cy="5" r="1.5" />
+                                      <circle cx="15" cy="5" r="1.5" />
+                                      <circle cx="9" cy="12" r="1.5" />
+                                      <circle cx="15" cy="12" r="1.5" />
+                                      <circle cx="9" cy="19" r="1.5" />
+                                      <circle cx="15" cy="19" r="1.5" />
+                                    </svg>
+                                  )}
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-deep-black font-heading text-sm truncate">
+                                      {appointment.customerName}
+                                    </p>
+                                    <p className="text-slate-grey text-xs truncate">
+                                      {getServiceName(appointment.serviceId)}{" "}
+                                      <span className="text-slate-grey/60">
+                                        ({getServiceDuration(appointment.serviceId)}m)
+                                      </span>{" "}
+                                      &bull; {appointment.phoneNumber}
+                                    </p>
+                                  </div>
+                                </div>
+                                <StatusBadge status={appointment.status} />
+                              </div>
+                            )}
+                          </Draggable>
+                        ) : (
+                          <div className="w-full flex items-center justify-center py-1">
+                            <span
+                              className={`text-[11px] font-heading tracking-wide ${
+                                isAvailable
+                                  ? "text-green-500/60"
+                                  : "text-slate-grey/30"
+                              }`}
+                            >
+                              {isAvailable ? "Available" : "—"}
+                            </span>
+                          </div>
+                        )}
+                        {provided.placeholder}
+                      </div>
+                    </div>
+                  )}
+                </Droppable>
+              );
+            })}
+          </div>
+        </DragDropContext>
+
+        {/* ── Summary footer ────────────────────────────────────── */}
+        <div className="flex flex-wrap gap-4 text-xs text-slate-grey font-heading px-1">
+          <span>
+            {dayAppointments.length} appointment{dayAppointments.length !== 1 ? "s" : ""}
+          </span>
+          <span>&bull;</span>
+          <span>
+            {dayAppointments.filter((a) => a.status === "completed").length} completed
+          </span>
+          <span>&bull;</span>
+          <span>
+            {dayAppointments.filter((a) => a.status === "booked").length} upcoming
+          </span>
+          <span>&bull;</span>
+          <span>{breakMinutes}m break between sessions</span>
+        </div>
+      </div>
     </div>
   );
 }

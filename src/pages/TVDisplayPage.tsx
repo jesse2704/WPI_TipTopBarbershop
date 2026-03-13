@@ -1,28 +1,8 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { useBooking } from "../context/BookingContext";
+import { WORKING_TIME_SLOTS, useBooking } from "../context/BookingContext";
 import { useYouTubeQueue } from "../hooks/useYouTubeQueue";
 import { services } from "../data/services";
-
-const TIME_SLOTS = [
-  "09:00",
-  "09:30",
-  "10:00",
-  "10:30",
-  "11:00",
-  "11:30",
-  "12:00",
-  "12:30",
-  "13:00",
-  "13:30",
-  "14:00",
-  "14:30",
-  "15:00",
-  "15:30",
-  "16:00",
-  "16:30",
-  "17:00",
-];
 
 function getServiceName(serviceId: string): string {
   return services.find((s) => s.id === serviceId)?.name ?? serviceId;
@@ -37,7 +17,7 @@ function formatTime(time: string): string {
 }
 
 export default function TVDisplayPage() {
-  const { getAppointmentsByDate } = useBooking();
+  const { getAppointmentsByDate, getAvailableTimeSlots, breakMinutes } = useBooking();
   const { currentVideo, queue, playNext } = useYouTubeQueue();
   const [now, setNow] = useState(new Date());
 
@@ -52,13 +32,11 @@ export default function TVDisplayPage() {
   const today = now.toISOString().split("T")[0];
   const todayAppointments = getAppointmentsByDate(today);
 
-  const bookedSlots = todayAppointments
-    .filter((a) => a.status !== "completed")
-    .map((a) => a.timeSlot);
-
-  const availableSlots = TIME_SLOTS.filter(
-    (slot) => !bookedSlots.includes(slot)
-  );
+  const availableSlots = Array.from(
+    new Set(
+      services.flatMap((service) => getAvailableTimeSlots(today, service.id))
+    )
+  ).sort((a, b) => a.localeCompare(b));
 
   const currentAppointment = todayAppointments.find(
     (a) => a.status === "in-progress"
@@ -167,6 +145,9 @@ export default function TVDisplayPage() {
             <h2 className="text-xl font-bold font-heading text-antique-gold mb-3 tracking-wider uppercase">
               Available Today
             </h2>
+            <p className="text-xs text-slate-grey mb-3">
+              Includes {breakMinutes}-minute turnaround between appointments
+            </p>
             {availableSlots.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
                 {availableSlots.map((slot) => (
@@ -270,7 +251,7 @@ export default function TVDisplayPage() {
               Schedule
             </h3>
             <div className="space-y-1">
-              {TIME_SLOTS.map((slot) => {
+              {WORKING_TIME_SLOTS.map((slot) => {
                 const appointment = todayAppointments.find(
                   (a) => a.timeSlot === slot
                 );

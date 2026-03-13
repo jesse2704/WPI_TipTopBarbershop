@@ -8,8 +8,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const BARBER_USERNAME = "barber";
-const BARBER_PASSWORD = "tiptop123";
+const USERS: Record<string, string> = {
+  barber: "tiptop123",
+  test: "test123",
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -21,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   const login = (username: string, password: string): boolean => {
-    if (username === BARBER_USERNAME && password === BARBER_PASSWORD) {
+    if (USERS[username] && USERS[username] === password) {
       setIsAuthenticated(true);
       return true;
     }

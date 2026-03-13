@@ -65,6 +65,14 @@ function escapeIcs(text: string): string {
     .replace(/;/g, "\\;");
 }
 
+function createStableId(): string {
+  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `ttb-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function BrandMasthead({ subtitle }: { subtitle: string }) {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-[#C5A059]/25 bg-[#111111] px-6 py-7 shadow-xl md:px-8 md:py-8">
@@ -110,7 +118,7 @@ function BookingSuccessScreen({ data }: { data: SuccessData }) {
   };
 
   const downloadIcs = () => {
-    const uid = `${crypto.randomUUID()}@tiptopbarbershop`;
+    const uid = `${createStableId()}@tiptopbarbershop`;
     const ics = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -257,6 +265,7 @@ function AgendaBookingView({ paymentCancelled }: { paymentCancelled: boolean }) 
   const [customerName, setCustomerName] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const days = useMemo(buildNext14Days, []);
   const contactInfo = user?.phoneNumber ?? user?.email ?? user?.displayName ?? "Signed in user";
@@ -283,9 +292,10 @@ function AgendaBookingView({ paymentCancelled }: { paymentCancelled: boolean }) 
     if (!svc) return;
 
     setBusy(true);
+    setPaymentError(null);
     try {
       const pending = {
-        id: crypto.randomUUID(),
+        id: createStableId(),
         customerName,
         contactInfo: bookingContact,
         serviceId,
@@ -316,9 +326,18 @@ function AgendaBookingView({ paymentCancelled }: { paymentCancelled: boolean }) 
       });
 
       const { sessionUrl } = result.data as { sessionUrl: string };
+      if (!sessionUrl) {
+        throw new Error("No checkout session URL was returned.");
+      }
+
       window.location.href = sessionUrl;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Payment error:", err);
+      const message =
+        typeof err === "object" && err && "message" in err && typeof err.message === "string"
+          ? err.message
+          : "Unable to start payment. Please try again in a moment.";
+      setPaymentError(message);
       setBusy(false);
     }
   };
@@ -333,6 +352,12 @@ function AgendaBookingView({ paymentCancelled }: { paymentCancelled: boolean }) 
         {paymentCancelled && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Payment was cancelled. Your slot is not booked yet. Please confirm and pay to finalize.
+          </div>
+        )}
+
+        {paymentError && (
+          <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {paymentError}
           </div>
         )}
 

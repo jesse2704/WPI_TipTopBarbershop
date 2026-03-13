@@ -6,7 +6,7 @@ import CTASection from '../components/home/CTASection';
 
 export default function Home() {
   return (
-    <div>
+    <div className="brand-page">
       <HeroSection />
       <ServicesPreview />
       <AboutPreview />

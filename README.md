@@ -1,161 +1,171 @@
 # Tip Top Barbershop Web App
 
-Tip Top Barbershop is a React + Vite application with:
-- public-facing marketing pages,
-- appointment booking,
-- a barber dashboard (agenda/session management),
-- a TV live feed for in-shop display,
-- and a mobile remote page for YouTube music queue control.
+Tip Top Barbershop is a React + Vite application for a modern barbershop operation:
+- premium marketing website,
+- multilingual booking flow,
+- Stripe checkout with iDEAL support,
+- barber operations portal (dashboard + client detail hub),
+- TV display and remote queue control.
 
 ## Tech Stack
 
 - React
-- TypeScript / JavaScript
+- TypeScript + JavaScript
 - Vite
 - Tailwind CSS
-- Firebase Phone Auth (free tier)
-- LocalStorage + BroadcastChannel (for real-time sync across tabs/screens)
+- Firebase (Auth + Functions)
+- Stripe Checkout
+- LocalStorage + BroadcastChannel
+
+## Design and Branding System
+
+The UI uses a consistent brand system:
+- typography: Roboto Condensed (headings), Lora (body)
+- palette: charcoal/black base with antique gold accents
+- reusable brand utilities in src/index.css
+- shared visual language across public and staff pages (cards, headers, buttons, spacing, transitions)
+
+Core branding files:
+- src/index.css
+- src/components/Layout.jsx
+- src/pages/Home.jsx
+- src/pages/Services.jsx
+- src/pages/About.jsx
+- src/pages/Gallery.jsx
+- src/pages/Contact.jsx
 
 ## Getting Started
 
-1. Install dependencies:
+1. Install dependencies
 
 ```bash
 npm install
 ```
 
-2. Start development server:
+2. Start local development
 
 ```bash
 npm run dev
 ```
 
-3. Open the local URL shown in the terminal (usually `http://localhost:5173`).
+3. Build for production
 
-## Firebase Setup (Phone Auth)
+```bash
+npm run build
+```
 
-1. Go to [Firebase Console](https://console.firebase.google.com) and create a project.
-2. Enable **Phone** sign-in under **Authentication → Sign-in method**.
-3. Copy your Firebase config from **Project settings → General**.
-4. Paste the values into `src/lib/firebase.ts`.
-5. (Optional) Add test phone numbers under **Authentication → Phone → Phone numbers for testing** to avoid SMS charges during development.
+## Firebase Setup
 
-Firebase Phone Auth is **free** up to 10,000 verifications/month on the Spark plan.
+1. Create a Firebase project in Firebase Console.
+2. Enable sign-in methods you use (Google, Apple, Phone).
+3. Add Firebase web app config to src/lib/firebase.ts.
+4. Install Firebase CLI and log in.
+5. Configure functions secrets (required for payments and reviews):
 
-## Core Functionalities
+```bash
+firebase functions:secrets:set STRIPE_SECRET_KEY
+firebase functions:secrets:set EMAIL_HOST
+firebase functions:secrets:set EMAIL_PORT
+firebase functions:secrets:set EMAIL_USER
+firebase functions:secrets:set EMAIL_PASS
+firebase functions:secrets:set EMAIL_FROM
+firebase functions:secrets:set GOOGLE_MAPS_API_KEY
+```
 
-### 1) Booking Flow (Customer)
+6. Deploy functions from the functions folder:
 
-The booking flow requires **Firebase Phone Authentication** before a customer can book:
+```bash
+npm run deploy
+```
 
-1. Customer visits `/book` and enters their phone number.
-2. Firebase sends a one-time SMS code (invisible reCAPTCHA — no user interaction).
-3. Customer enters the 6-digit code to verify.
-4. After verification, the customer sees a **2-week agenda overview** showing every day and time slot.
-5. Slots are color-coded: green = available, red = taken, grey = blocked.
-6. Tap an available slot → a sticky bottom bar confirms service, date, time → tap "Confirm Booking".
+## Main Features
 
-How it works:
-- Time slots run from **09:00 to 17:00** (30-minute intervals).
-- Slots already booked (or in progress) are hidden from availability.
-- Service duration + break time is respected when computing slot availability.
-- Phone number is captured automatically from Firebase auth — no manual entry needed.
-- Successful bookings are saved to local storage and immediately visible in agenda/live feed pages.
+### Customer booking
 
-Main file:
-- `src/pages/BookingPage.tsx`
-
-### 2) Agenda / Barber Dashboard
-
-The dashboard shows today’s schedule and supports session state changes:
-- **Start Session**: moves the next booked client to `in-progress`.
-- **End Session**: complete current session via cash or payment-link flow.
-- Clear status badges: `booked`, `in-progress`, `completed`.
-
-Main file:
-- `src/pages/BarberDashboardPage.tsx`
-
-### 3) Live Feed (TV Display)
-
-The TV display is designed for in-shop screens and updates continuously:
-- **Now Serving** section,
-- **Up Next** queue,
-- **Available Today** (book slots),
-- full mini schedule timeline,
-- YouTube music player + queue info,
-- QR code that opens remote control on a phone.
+- route: /book
+- multilingual UI (NL default, EN available)
+- service selection and slot selection
+- checkout via Firebase function + Stripe
+- payment methods include card and iDEAL
+- confirmation screen with calendar export
+- My Bookings view with upcoming/history controls
+- free client reschedule when appointment is at least 24h away
 
 Main file:
-- `src/pages/TVDisplayPage.tsx`
+- src/pages/BookingPage.tsx
 
-### 4) Book Slots Page Behavior
+### Public website
 
-“Book slots” refers to available appointment times shown in:
-- the booking form (`BookingPage`), and
-- the TV live feed (`Available Today` section).
+- route set: /Home, /Services, /Gallery, /About, /Contact
+- shared premium brand styling
+- testimonials can load live Google reviews through cloud function with fallback
 
-Slot rules:
-- `completed` appointments do **not** block a slot anymore,
-- `booked` and `in-progress` appointments keep the slot occupied,
-- sorting is chronological by time.
+Main files:
+- src/components/home/*
+- src/pages/Home.jsx
+- src/pages/Services.jsx
+- src/pages/Gallery.jsx
+- src/pages/About.jsx
+- src/pages/Contact.jsx
 
-### 5) Music Remote Control (Phone)
+### Barber operations
 
-Remote page allows clients/staff to:
-- add YouTube links to queue,
-- set optional title,
-- skip to a queued video,
-- remove queued videos.
+- route: /barber/login
+- route: /barber/dashboard
+- route: /barber/clients
+- drag-and-drop daily appointment timeline
+- start/finish session controls
+- break time controls
+- client detail hub with search, filters, notes, and CSV export
 
-Main file:
-- `src/pages/RemoteControlPage.tsx`
+Main files:
+- src/pages/BarberLoginPage.tsx
+- src/pages/BarberDashboardPage.tsx
+- src/pages/BarberClientsPage.tsx
 
-## Data + Live Sync
+### TV + Remote
 
-### Appointment storage
+- route: /tv
+- route: /remote
+- live queue/schedule viewing and remote YouTube queue management
 
-- Key: `tiptop_appointments`
-- Stored in browser localStorage
-- Managed by:
-  - `src/context/BookingContext.tsx`
+Main files:
+- src/pages/TVDisplayPage.tsx
+- src/pages/RemoteControlPage.tsx
 
-### YouTube queue storage + sync
+## Data and Sync
 
-- Storage key: `tiptop_youtube`
-- Broadcast channel: `tiptop_youtube_channel`
-- Managed by:
-  - `src/hooks/useYouTubeQueue.ts`
+Appointment data:
+- localStorage key: tiptop_appointments
+- context: src/context/BookingContext.tsx
 
-This enables near real-time updates between pages/tabs (e.g., TV screen + mobile remote).
+YouTube queue:
+- storage key: tiptop_youtube
+- BroadcastChannel: tiptop_youtube_channel
+- hook: src/hooks/useYouTubeQueue.ts
 
-## How to Use (Operational Example)
+Client notes:
+- localStorage key: tiptop_client_notes
+- page: src/pages/BarberClientsPage.tsx
 
-1. Open booking page and create appointments.
-2. Open dashboard and start/end sessions as clients are served.
-3. Open TV display on a second screen to show live agenda + open slots.
-4. Scan TV QR code with phone to open remote and add songs.
+## Routes
 
-## Available Demo Credentials (Barber Login)
-
-Defined in `src/context/AuthContext.tsx`:
-- Username: `barber` / Password: `tiptop123`
-- Username: `test` / Password: `test123`
-
-## Route Notes
-
-Operational pages exist in `src/pages`:
-- `BookingPage.tsx`
-- `BarberLoginPage.tsx`
-- `BarberDashboardPage.tsx`
-- `TVDisplayPage.tsx`
-- `RemoteControlPage.tsx`
-
-If you want direct URL access (for example `/book`, `/tv`, `/remote`, `/barber/login`, `/barber/dashboard`), ensure these routes are registered in your app router.
+- /Home
+- /Services
+- /Gallery
+- /About
+- /Contact
+- /book
+- /tv
+- /remote
+- /barber/login
+- /barber/dashboard
+- /barber/clients
 
 ## Scripts
 
-- `npm run dev` — start development server
-- `npm run build` — production build
-- `npm run preview` — preview production build
-- `npm run lint` — run ESLint
-- `npm run lint:fix` — auto-fix lint issues
+- npm run dev
+- npm run build
+- npm run preview
+- npm run lint
+- npm run lint:fix

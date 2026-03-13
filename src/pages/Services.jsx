@@ -1,41 +1,92 @@
 import { motion } from 'framer-motion';
 import { Scissors, SprayCan, Sparkles, Crown, Paintbrush, Baby } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
 
 const SERVICES = [
-  { icon: Scissors, title: 'Classic Haircut', price: '$35', duration: '30 min', description: 'A precision cut tailored to your style, includes wash and styling.' },
-  { icon: Crown, title: 'Premium Haircut', price: '$50', duration: '45 min', description: 'Extended consultation, cut, wash, styling, and finishing products.' },
-  { icon: SprayCan, title: 'Hot Towel Shave', price: '$30', duration: '30 min', description: 'Traditional straight-razor shave with hot towels and premium oils.' },
-  { icon: Paintbrush, title: 'Beard Trim & Shape', price: '$20', duration: '20 min', description: 'Expert beard sculpting and trimming for a clean, defined look.' },
-  { icon: Sparkles, title: 'The Full Experience', price: '$65', duration: '60 min', description: 'Haircut, beard trim, hot towel shave, and relaxing scalp massage.' },
-  { icon: Baby, title: 'Kids Cut', price: '$25', duration: '20 min', description: 'A fun, patient haircut experience for kids 12 and under.' },
+  {
+    icon: Scissors,
+    titleNl: 'Klassieke Coupe',
+    titleEn: 'Classic Haircut',
+    price: 'EUR 35',
+    duration: '30 min',
+    descriptionNl: 'Een strakke coupe op maat van jouw stijl, inclusief wassen en styling.',
+    descriptionEn: 'A precision cut tailored to your style, includes wash and styling.',
+  },
+  {
+    icon: Crown,
+    titleNl: 'Premium Coupe',
+    titleEn: 'Premium Haircut',
+    price: 'EUR 50',
+    duration: '45 min',
+    descriptionNl: 'Uitgebreid consult, knippen, wassen, styling en premium afwerking.',
+    descriptionEn: 'Extended consultation, cut, wash, styling, and finishing products.',
+  },
+  {
+    icon: SprayCan,
+    titleNl: 'Hot Towel Shave',
+    titleEn: 'Hot Towel Shave',
+    price: 'EUR 30',
+    duration: '30 min',
+    descriptionNl: 'Traditionele scheerbeurt met hot towels en premium oliën.',
+    descriptionEn: 'Traditional straight-razor shave with hot towels and premium oils.',
+  },
+  {
+    icon: Paintbrush,
+    titleNl: 'Baard Trim & Vorm',
+    titleEn: 'Beard Trim & Shape',
+    price: 'EUR 20',
+    duration: '20 min',
+    descriptionNl: 'Vakkundig modelleren en trimmen voor een verzorgde, strakke look.',
+    descriptionEn: 'Expert beard sculpting and trimming for a clean, defined look.',
+  },
+  {
+    icon: Sparkles,
+    titleNl: 'Complete Ervaring',
+    titleEn: 'The Full Experience',
+    price: 'EUR 65',
+    duration: '60 min',
+    descriptionNl: 'Coupe, baardtrim, hot towel shave en ontspannende hoofdmassage.',
+    descriptionEn: 'Haircut, beard trim, hot towel shave, and relaxing scalp massage.',
+  },
+  {
+    icon: Baby,
+    titleNl: 'Kinderknipbeurt',
+    titleEn: 'Kids Cut',
+    price: 'EUR 25',
+    duration: '20 min',
+    descriptionNl: 'Een rustige en fijne knipbeurt voor kinderen tot 12 jaar.',
+    descriptionEn: 'A fun, patient haircut experience for kids 12 and under.',
+  },
 ];
 
 export default function Services() {
+  const { txt } = useLanguage();
+
   return (
-    <div>
+    <div className="brand-page">
       {/* Header */}
-      <section className="pt-32 pb-16 px-6 text-center">
+      <section className="brand-section brand-hero-header">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <p className="text-[#C5A059] text-xs tracking-[0.4em] uppercase mb-4" style={{fontFamily:"'Lora', serif"}}>What We Offer</p>
-          <h1 className="text-5xl md:text-6xl font-black tracking-tight" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>Services & Pricing</h1>
+          <p className="brand-kicker">{txt('Wat Wij Aanbieden', 'What We Offer')}</p>
+          <h1 className="brand-title">{txt('Diensten & Prijzen', 'Services & Pricing')}</h1>
         </motion.div>
       </section>
 
       {/* Services Grid */}
-      <section className="pb-32 px-6">
+      <section className="brand-section pb-32">
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
           {SERVICES.map((service, i) => (
             <motion.div
-              key={service.title}
+              key={service.titleEn}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
-              className="group bg-[#141414] border border-[#2A2A2A] p-8 hover:border-[#C5A059]/40 transition-all duration-500"
+              className="group brand-card"
             >
               <div className="flex items-start justify-between mb-5">
                 <service.icon className="w-7 h-7 text-[#C5A059]" />
@@ -44,8 +95,8 @@ export default function Services() {
                   <p className="text-white/30 text-xs mt-1" style={{fontFamily:"'Lora', serif"}}>{service.duration}</p>
                 </div>
               </div>
-              <h3 className="text-xl font-black mb-3" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>{service.title}</h3>
-              <p className="text-white/40 text-sm leading-relaxed" style={{fontFamily:"'Lora', serif"}}>{service.description}</p>
+                <h3 className="text-xl font-black mb-3" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>{txt(service.titleNl, service.titleEn)}</h3>
+              <p className="text-white/40 text-sm leading-relaxed" style={{fontFamily:"'Lora', serif"}}>{txt(service.descriptionNl, service.descriptionEn)}</p>
             </motion.div>
           ))}
         </div>
@@ -53,10 +104,9 @@ export default function Services() {
         <div className="text-center mt-16">
           <Link
             to="/Contact"
-            className="inline-flex items-center gap-3 px-10 py-4 font-bold text-sm tracking-wider uppercase transition-colors"
-              style={{backgroundColor:'#C5A059', color:'#1A1A1A', fontFamily:"'Roboto Condensed', sans-serif"}}
+            className="brand-button"
           >
-            Book an Appointment
+            {txt('Boek Een Afspraak', 'Book an Appointment')}
           </Link>
         </div>
       </section>

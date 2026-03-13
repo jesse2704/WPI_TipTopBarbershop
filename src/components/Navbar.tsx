@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function Navbar() {
   const { isAuthenticated, logout } = useAuth();
+  const { language, setLanguage, txt } = useLanguage();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -31,28 +33,47 @@ export default function Navbar() {
           {/* Desktop nav */}
           <div className="hidden sm:flex items-center gap-1">
             <Link to="/" className={linkClass("/")}>
-              Home
+              {txt("Home", "Home")}
             </Link>
             <Link to="/book" className={linkClass("/book")}>
-              Book Now
+              {txt("Boek Nu", "Book Now")}
             </Link>
             {isAuthenticated ? (
               <>
                 <Link to="/barber/dashboard" className={linkClass("/barber/dashboard")}>
-                  Dashboard
+                  {txt("Dashboard", "Dashboard")}
                 </Link>
                 <button
                   onClick={logout}
                   className="px-3 py-2 text-sm font-heading font-medium text-vintage-cream hover:text-antique-gold transition-colors"
                 >
-                  Logout
+                  {txt("Uitloggen", "Logout")}
                 </button>
               </>
             ) : (
               <Link to="/barber/login" className={linkClass("/barber/login")}>
-                Barber Login
+                {txt("Barbier Login", "Barber Login")}
               </Link>
             )}
+
+            <div className="ml-2 flex items-center rounded-md border border-slate-grey/40 p-0.5 text-xs">
+              <button
+                onClick={() => setLanguage("nl")}
+                className={`rounded px-2 py-1 transition-colors ${
+                  language === "nl" ? "bg-antique-gold text-deep-black" : "text-vintage-cream/85 hover:text-antique-gold"
+                }`}
+              >
+                NL
+              </button>
+              <button
+                onClick={() => setLanguage("en")}
+                className={`rounded px-2 py-1 transition-colors ${
+                  language === "en" ? "bg-antique-gold text-deep-black" : "text-vintage-cream/85 hover:text-antique-gold"
+                }`}
+              >
+                EN
+              </button>
+            </div>
           </div>
 
           {/* Mobile hamburger */}
@@ -71,16 +92,35 @@ export default function Navbar() {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="sm:hidden bg-deep-black border-t border-slate-grey/30 px-4 pb-4 space-y-1">
-          <Link to="/" className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold" onClick={() => setMenuOpen(false)}>Home</Link>
-          <Link to="/book" className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold" onClick={() => setMenuOpen(false)}>Book Now</Link>
+          <Link to="/" className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold" onClick={() => setMenuOpen(false)}>{txt("Home", "Home")}</Link>
+          <Link to="/book" className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold" onClick={() => setMenuOpen(false)}>{txt("Boek Nu", "Book Now")}</Link>
           {isAuthenticated ? (
             <>
-              <Link to="/barber/dashboard" className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold" onClick={() => setMenuOpen(false)}>Dashboard</Link>
-              <button onClick={() => { logout(); setMenuOpen(false); }} className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold">Logout</button>
+              <Link to="/barber/dashboard" className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold" onClick={() => setMenuOpen(false)}>{txt("Dashboard", "Dashboard")}</Link>
+              <button onClick={() => { logout(); setMenuOpen(false); }} className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold">{txt("Uitloggen", "Logout")}</button>
             </>
           ) : (
-            <Link to="/barber/login" className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold" onClick={() => setMenuOpen(false)}>Barber Login</Link>
+            <Link to="/barber/login" className="block py-2 text-sm font-heading text-vintage-cream hover:text-antique-gold" onClick={() => setMenuOpen(false)}>{txt("Barbier Login", "Barber Login")}</Link>
           )}
+
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={() => setLanguage("nl")}
+              className={`rounded border px-2 py-1 text-xs ${
+                language === "nl" ? "border-antique-gold bg-antique-gold text-deep-black" : "border-slate-grey/30 text-vintage-cream"
+              }`}
+            >
+              NL
+            </button>
+            <button
+              onClick={() => setLanguage("en")}
+              className={`rounded border px-2 py-1 text-xs ${
+                language === "en" ? "border-antique-gold bg-antique-gold text-deep-black" : "border-slate-grey/30 text-vintage-cream"
+              }`}
+            >
+              EN
+            </button>
+          </div>
         </div>
       )}
     </nav>

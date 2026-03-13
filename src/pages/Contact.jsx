@@ -1,146 +1,126 @@
 import { motion } from 'framer-motion';
-import { Phone, MapPin, Clock, Mail, Send } from 'lucide-react';
-import { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { Phone, MapPin, Clock, Mail } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 const INFO_ITEMS = [
-  { icon: MapPin, label: 'Address', value: '123 Main Street, Downtown\nSuite 101, City, ST 10001' },
-  { icon: Phone, label: 'Phone', value: '(555) 123-4567' },
-  { icon: Mail, label: 'Email', value: 'hello@thesharpedge.com' },
-  { icon: Clock, label: 'Hours', value: 'Mon–Fri: 9AM–8PM\nSat: 9AM–6PM · Sun: 10AM–4PM' },
+  {
+    icon: MapPin,
+    labelNl: 'Adres',
+    labelEn: 'Address',
+    valueNl: 'Tip Top Barbershop\nBekijk locatie op Google Maps',
+    valueEn: 'Tip Top Barbershop\nView location on Google Maps',
+    href: 'https://maps.google.com/maps?vet=10CAAQoqAOahcKEwj4p-aJnJ2TAxUAAAAAHQAAAAAQDA..i&sca_esv=d087776caa853f74&pvq=Cg0vZy8xMXZqMjZ2aGh2IhYKEHRpcHRvcGJhcmJlcnNob3AQAhgD&lqi=ChB0aXB0b3BiYXJiZXJzaG9wSPr7tKPAuoCACFoWEAAYACIQdGlwdG9wYmFyYmVyc2hvcJIBEnVuaXNleF9oYWlyZHJlc3Nlcg&fvr=1&cs=0&um=1&ie=UTF-8&fb=1&gl=nl&sa=X&ftid=0x47c5b7575fdf3cef:0xb5293e770dbdf116',
+  },
+  {
+    icon: Phone,
+    labelNl: 'Telefoon',
+    labelEn: 'Phone',
+    valueNl: '06 17886799',
+    valueEn: '06 17886799',
+    href: 'tel:+31617886799',
+  },
+  {
+    icon: Mail,
+    labelNl: 'Instagram',
+    labelEn: 'Instagram',
+    valueNl: '@tiptopbarbershopnl',
+    valueEn: '@tiptopbarbershopnl',
+    href: 'https://www.instagram.com/tiptopbarbershopnl/',
+  },
+  {
+    icon: Mail,
+    labelNl: 'E-mail',
+    labelEn: 'Email',
+    valueNl: 'info@tiptopbarbershop.nl',
+    valueEn: 'info@tiptopbarbershop.nl',
+    href: 'mailto:info@tiptopbarbershop.nl',
+  },
+  {
+    icon: Clock,
+    labelNl: 'Openingstijden',
+    labelEn: 'Hours',
+    valueNl: 'Ma–Vr: 9:00–20:00\nZa: 9:00–18:00 · Zo: 10:00–16:00',
+    valueEn: 'Mon–Fri: 9AM–8PM\nSat: 9AM–6PM · Sun: 10AM–4PM',
+  },
 ];
 
 export default function Contact() {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
-  const [sending, setSending] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSending(true);
-    // Simulate sending
-    await new Promise(r => setTimeout(r, 1000));
-    toast.success('Message sent! We\'ll get back to you shortly.');
-    setForm({ name: '', email: '', phone: '', message: '' });
-    setSending(false);
-  };
+  const { txt } = useLanguage();
 
   return (
-    <div>
+    <div className="brand-page">
       {/* Header */}
-      <section className="pt-32 pb-16 px-6 text-center">
+      <section className="brand-section brand-hero-header text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <p className="text-[#C5A059] text-xs tracking-[0.4em] uppercase mb-4" style={{fontFamily:"'Lora', serif"}}>Get In Touch</p>
-          <h1 className="text-5xl md:text-6xl font-black tracking-tight" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>Contact Us</h1>
+          <p className="brand-kicker">{txt('Neem Contact Op', 'Get In Touch')}</p>
+          <h1 className="brand-title">{txt('Contact', 'Contact Us')}</h1>
         </motion.div>
       </section>
 
       {/* Content */}
-      <section className="pb-32 px-6">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+      <section className="brand-section pb-32">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-20">
           {/* Info */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
+            className="brand-card"
           >
-            <h2 className="text-2xl font-bold mb-8">Visit Us or Drop a Line</h2>
+            <h2 className="text-2xl font-bold mb-8">{txt('Kom Langs Of Stuur Een Bericht', 'Visit Us or Drop a Line')}</h2>
             <div className="space-y-8">
               {INFO_ITEMS.map(item => (
-                <div key={item.label} className="flex items-start gap-4">
+                <div key={item.labelEn} className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-[#C5A059]/10 flex items-center justify-center flex-shrink-0">
                     <item.icon className="w-5 h-5 text-[#C5A059]" />
                   </div>
                   <div>
-                    <p className="text-sm text-[#C5A059] tracking-wider uppercase mb-1" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>{item.label}</p>
-                    <p className="text-white/50 text-sm whitespace-pre-line leading-relaxed">{item.value}</p>
+                    <p className="text-sm text-[#C5A059] tracking-wider uppercase mb-1" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>{txt(item.labelNl, item.labelEn)}</p>
+                    {item.href ? (
+                      <a
+                        href={item.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-white/50 text-sm whitespace-pre-line leading-relaxed underline-offset-4 hover:text-white hover:underline"
+                      >
+                        {txt(item.valueNl, item.valueEn)}
+                      </a>
+                    ) : (
+                      <p className="text-white/50 text-sm whitespace-pre-line leading-relaxed">{txt(item.valueNl, item.valueEn)}</p>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-
-            {/* Map placeholder */}
-            <div className="mt-10 aspect-video bg-[#141414] border border-[#1E1E1E] flex items-center justify-center overflow-hidden">
-              <img
-                src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80"
-                alt="Location"
-                className="w-full h-full object-cover opacity-50"
-              />
-            </div>
           </motion.div>
 
-          {/* Form */}
+          {/* Map */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            <div className="bg-[#141414] border border-[#2A2A2A] p-8 md:p-10">
-              <h2 className="text-2xl font-bold mb-2">Book an Appointment</h2>
-              <p className="text-white/40 text-sm mb-8">
-                Fill out the form below and we'll get back to you within 24 hours.
-              </p>
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label className="text-xs text-white/50 tracking-wider uppercase mb-2 block">Full Name</label>
-                  <Input
-                    required
-                    value={form.name}
-                    onChange={e => setForm({ ...form, name: e.target.value })}
-                    placeholder="John Doe"
-                    className="bg-[#0A0A0A] border-[#1E1E1E] text-white placeholder:text-white/20 h-12 rounded-none focus:border-[#C8A55C] focus:ring-0"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-white/50 tracking-wider uppercase mb-2 block">Email</label>
-                  <Input
-                    required
-                    type="email"
-                    value={form.email}
-                    onChange={e => setForm({ ...form, email: e.target.value })}
-                    placeholder="john@example.com"
-                    className="bg-[#0A0A0A] border-[#1E1E1E] text-white placeholder:text-white/20 h-12 rounded-none focus:border-[#C8A55C] focus:ring-0"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-white/50 tracking-wider uppercase mb-2 block">Phone</label>
-                  <Input
-                    value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
-                    placeholder="(555) 000-0000"
-                    className="bg-[#0A0A0A] border-[#1E1E1E] text-white placeholder:text-white/20 h-12 rounded-none focus:border-[#C8A55C] focus:ring-0"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-white/50 tracking-wider uppercase mb-2 block">Message</label>
-                  <Textarea
-                    value={form.message}
-                    onChange={e => setForm({ ...form, message: e.target.value })}
-                    placeholder="Tell us what you're looking for..."
-                    rows={4}
-                    className="bg-[#0A0A0A] border-[#1E1E1E] text-white placeholder:text-white/20 rounded-none focus:border-[#C8A55C] focus:ring-0 resize-none"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  disabled={sending}
-                  className="w-full h-12 font-bold text-sm tracking-wider uppercase rounded-none transition-colors"
-                  style={{backgroundColor:'#C5A059', color:'#1A1A1A', fontFamily:"'Roboto Condensed', sans-serif"}}
-                >
-                  {sending ? 'Sending...' : (
-                    <span className="flex items-center gap-2">
-                      Send Message <Send className="w-4 h-4" />
-                    </span>
-                  )}
-                </Button>
-              </form>
+            <div className="mt-10 overflow-hidden border border-[#1E1E1E] bg-[#141414] shadow-2xl">
+              <iframe
+                title="Tip Top Barbershop location"
+                src="https://www.google.com/maps?q=Tip+Top+Barbershop+NL&output=embed"
+                className="h-[420px] w-full"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+              <a
+                href="https://maps.google.com/maps?vet=10CAAQoqAOahcKEwj4p-aJnJ2TAxUAAAAAHQAAAAAQDA..i&sca_esv=d087776caa853f74&pvq=Cg0vZy8xMXZqMjZ2aGh2IhYKEHRpcHRvcGJhcmJlcnNob3AQAhgD&lqi=ChB0aXB0b3BiYXJiZXJzaG9wSPr7tKPAuoCACFoWEAAYACIQdGlwdG9wYmFyYmVyc2hvcJIBEnVuaXNleF9oYWlyZHJlc3Nlcg&fvr=1&cs=0&um=1&ie=UTF-8&fb=1&gl=nl&sa=X&ftid=0x47c5b7575fdf3cef:0xb5293e770dbdf116"
+                target="_blank"
+                rel="noreferrer"
+                className="block border-t border-[#1E1E1E] px-4 py-3 text-center text-xs uppercase tracking-widest text-[#C5A059] transition-colors hover:bg-[#1A1A1A]"
+                style={{fontFamily:"'Roboto Condensed', sans-serif"}}
+              >
+                {txt('Open In Google Maps', 'Open in Google Maps')}
+              </a>
             </div>
           </motion.div>
         </div>

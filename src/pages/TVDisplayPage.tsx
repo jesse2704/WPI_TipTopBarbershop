@@ -3,6 +3,10 @@ import { QRCodeSVG } from "qrcode.react";
 import { WORKING_TIME_SLOTS, useBooking } from "../context/BookingContext";
 import { useYouTubeQueue } from "../hooks/useYouTubeQueue";
 import { services } from "../data/services";
+import { useLanguage } from "../context/LanguageContext";
+
+const headingFont = { fontFamily: "'Roboto Condensed', 'Arial Narrow', sans-serif" };
+const accentFont = { fontFamily: "'Lora', serif" };
 
 function getServiceName(serviceId: string): string {
   return services.find((s) => s.id === serviceId)?.name ?? serviceId;
@@ -19,6 +23,7 @@ function formatTime(time: string): string {
 export default function TVDisplayPage() {
   const { getAppointmentsByDate, getAvailableTimeSlots, breakMinutes } = useBooking();
   const { currentVideo, queue, playNext } = useYouTubeQueue();
+  const { txt } = useLanguage();
   const [now, setNow] = useState(new Date());
 
   const remoteUrl = `${window.location.origin}/remote`;
@@ -55,14 +60,14 @@ export default function TVDisplayPage() {
     : [];
 
   return (
-    <div className="h-screen bg-deep-black text-vintage-cream flex flex-col overflow-hidden">
+    <div className="h-screen brand-page text-vintage-cream flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-4 border-b border-slate-grey/20">
-        <h1 className="text-3xl md:text-4xl font-bold tracking-wider font-heading">
+      <header className="flex items-center justify-between px-8 py-4 border-b border-[#2A2A2A] bg-[#111111]/60 backdrop-blur-sm">
+        <h1 className="text-3xl md:text-4xl font-bold tracking-wider" style={headingFont}>
           TIP TOP{" "}
           <span className="text-antique-gold">BARBERSHOP</span>
         </h1>
-        <p className="text-slate-grey text-lg font-heading">
+        <p className="text-slate-grey text-lg" style={accentFont}>
           {now.toLocaleDateString("en-US", {
             weekday: "long",
             month: "long",
@@ -82,22 +87,22 @@ export default function TVDisplayPage() {
         <div className="col-span-4 flex flex-col gap-5 overflow-y-auto min-h-0">
           {/* Now Serving */}
           <div>
-            <h2 className="text-xl font-bold font-heading text-antique-gold mb-3 tracking-wider uppercase">
-              Now Serving
+            <h2 className="text-xl font-bold text-antique-gold mb-3 tracking-wider uppercase" style={headingFont}>
+              {txt("Nu Aan De Beurt", "Now Serving")}
             </h2>
             {currentAppointment ? (
-              <div className="bg-antique-gold/10 border-2 border-antique-gold rounded-xl p-5">
-                <p className="text-3xl font-bold font-heading text-antique-gold mb-1">
+              <div className="bg-antique-gold/10 border-2 border-antique-gold rounded-xl p-5 shadow-lg">
+                <p className="text-3xl font-bold text-antique-gold mb-1" style={headingFont}>
                   {currentAppointment.customerName}
                 </p>
-                <p className="text-lg text-slate-grey">
+                <p className="text-lg text-slate-grey" style={accentFont}>
                   {getServiceName(currentAppointment.serviceId)} • {formatTime(currentAppointment.timeSlot)}
                 </p>
               </div>
             ) : (
               <div className="bg-slate-grey/10 border border-slate-grey/30 rounded-xl p-5">
-                <p className="text-xl text-slate-grey font-heading">
-                  Chair is open
+                <p className="text-xl text-slate-grey" style={headingFont}>
+                  {txt("Stoel Is Vrij", "Chair Is Open")}
                 </p>
               </div>
             )}
@@ -105,8 +110,8 @@ export default function TVDisplayPage() {
 
           {/* Up Next */}
           <div>
-            <h2 className="text-xl font-bold font-heading text-antique-gold mb-3 tracking-wider uppercase">
-              Up Next
+            <h2 className="text-xl font-bold text-antique-gold mb-3 tracking-wider uppercase" style={headingFont}>
+              {txt("Volgende", "Up Next")}
             </h2>
             {upcomingAppointments.length > 0 ? (
               <div className="space-y-2">
@@ -121,14 +126,14 @@ export default function TVDisplayPage() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-base font-bold font-heading">
+                        <p className="text-base font-bold" style={headingFont}>
                           {appointment.customerName}
                         </p>
-                        <p className="text-sm text-slate-grey">
+                        <p className="text-sm text-slate-grey" style={accentFont}>
                           {getServiceName(appointment.serviceId)}
                         </p>
                       </div>
-                      <p className="text-lg font-heading text-antique-gold">
+                      <p className="text-lg text-antique-gold" style={headingFont}>
                         {formatTime(appointment.timeSlot)}
                       </p>
                     </div>
@@ -136,17 +141,17 @@ export default function TVDisplayPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-slate-grey">No upcoming appointments</p>
+              <p className="text-slate-grey" style={accentFont}>{txt("Geen komende afspraken", "No Upcoming Appointments")}</p>
             )}
           </div>
 
           {/* Available Slots */}
           <div>
-            <h2 className="text-xl font-bold font-heading text-antique-gold mb-3 tracking-wider uppercase">
-              Available Today
+            <h2 className="text-xl font-bold text-antique-gold mb-3 tracking-wider uppercase" style={headingFont}>
+              {txt("Vandaag Beschikbaar", "Available Today")}
             </h2>
-            <p className="text-xs text-slate-grey mb-3">
-              Includes {breakMinutes}-minute turnaround between appointments
+            <p className="text-xs text-slate-grey mb-3" style={accentFont}>
+              {txt("Inclusief", "Includes")} {breakMinutes}-minute {txt("wisseltijd tussen afspraken", "turnaround between appointments")}
             </p>
             {availableSlots.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
@@ -155,7 +160,7 @@ export default function TVDisplayPage() {
                     key={slot}
                     className="bg-green-900/20 border border-green-500/40 rounded-lg p-2 text-center"
                   >
-                    <p className="text-lg font-bold font-heading text-green-400">
+                    <p className="text-lg font-bold text-green-400" style={headingFont}>
                       {formatTime(slot)}
                     </p>
                   </div>
@@ -163,8 +168,8 @@ export default function TVDisplayPage() {
               </div>
             ) : (
               <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 text-center">
-                <p className="text-lg text-red-400 font-heading">
-                  Fully Booked
+                <p className="text-lg text-red-400" style={headingFont}>
+                  {txt("Volgeboekt", "Fully Booked")}
                 </p>
               </div>
             )}
@@ -174,7 +179,7 @@ export default function TVDisplayPage() {
         {/* Center — YouTube Player */}
         <div className="col-span-6 flex flex-col min-h-0">
           <div className="flex-1 flex flex-col">
-            <div className="flex-1 bg-slate-grey/10 border border-slate-grey/30 rounded-xl overflow-hidden flex flex-col">
+            <div className="flex-1 bg-[#141414] border border-[#2A2A2A] rounded-xl overflow-hidden flex flex-col shadow-xl">
               {currentVideo ? (
                 <iframe
                   className="w-full flex-1 border-0"
@@ -187,8 +192,8 @@ export default function TVDisplayPage() {
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">
                     <p className="text-6xl mb-4">🎵</p>
-                    <p className="text-2xl text-slate-grey font-heading">
-                      Scan the QR code to add music
+                    <p className="text-2xl text-slate-grey" style={headingFont}>
+                      {txt("Scan De QR-Code Om Muziek Toe Te Voegen", "Scan the QR code to add music")}
                     </p>
                   </div>
                 </div>
@@ -200,28 +205,29 @@ export default function TVDisplayPage() {
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 {currentVideo ? (
                   <>
-                    <span className="text-antique-gold text-sm font-heading uppercase tracking-wider shrink-0">
-                      Now Playing:
+                    <span className="text-antique-gold text-sm uppercase tracking-wider shrink-0" style={headingFont}>
+                      {txt("Nu Speelt", "Now Playing")}:
                     </span>
-                    <span className="text-vintage-cream font-heading truncate">
+                    <span className="text-vintage-cream truncate" style={headingFont}>
                       {currentVideo.title}
                     </span>
                     <button
                       onClick={playNext}
-                      className="text-xs text-slate-grey hover:text-antique-gold border border-slate-grey/30 rounded px-2 py-1 font-heading transition-colors shrink-0"
+                      className="text-xs text-slate-grey hover:text-antique-gold border border-slate-grey/30 rounded px-2 py-1 transition-colors shrink-0"
+                      style={headingFont}
                     >
                       Skip ▶▶
                     </button>
                   </>
                 ) : (
-                  <span className="text-slate-grey text-sm font-heading">
-                    No music playing
+                  <span className="text-slate-grey text-sm" style={accentFont}>
+                    {txt("Er Speelt Geen Muziek", "No music playing")}
                   </span>
                 )}
               </div>
               {upcomingVideos.length > 0 && (
-                <span className="text-slate-grey text-sm font-heading shrink-0 ml-4">
-                  {upcomingVideos.length} in queue
+                <span className="text-slate-grey text-sm shrink-0 ml-4" style={accentFont}>
+                  {upcomingVideos.length} {txt("in wachtrij", "in queue")}
                 </span>
               )}
             </div>
@@ -231,7 +237,7 @@ export default function TVDisplayPage() {
         {/* Right Column — QR Code + Schedule */}
         <div className="col-span-2 flex flex-col gap-5 min-h-0">
           {/* QR Code */}
-          <div className="bg-stark-white rounded-xl p-4 text-center">
+          <div className="bg-stark-white rounded-xl p-4 text-center shadow-lg border border-antique-gold/20">
             <QRCodeSVG
               value={remoteUrl}
               size={160}
@@ -240,15 +246,15 @@ export default function TVDisplayPage() {
               level="M"
               className="mx-auto"
             />
-            <p className="text-deep-black text-xs font-heading mt-2 font-bold uppercase tracking-wider">
-              Scan to add music
+            <p className="text-deep-black text-xs mt-2 font-bold uppercase tracking-wider" style={headingFont}>
+              {txt("Scan Om Muziek Toe Te Voegen", "Scan to add music")}
             </p>
           </div>
 
           {/* Mini Schedule */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            <h3 className="text-sm font-bold font-heading text-antique-gold mb-2 tracking-wider uppercase">
-              Schedule
+            <h3 className="text-sm font-bold text-antique-gold mb-2 tracking-wider uppercase" style={headingFont}>
+              {txt("Planning", "Schedule")}
             </h3>
             <div className="space-y-1">
               {WORKING_TIME_SLOTS.map((slot) => {
@@ -269,7 +275,7 @@ export default function TVDisplayPage() {
                             : "bg-green-900/10 border border-green-500/20"
                     }`}
                   >
-                    <span className="font-heading font-bold min-w-[52px]">
+                    <span className="font-bold min-w-[52px]" style={headingFont}>
                       {formatTime(slot)}
                     </span>
                     {appointment && appointment.status !== "completed" ? (
@@ -277,10 +283,10 @@ export default function TVDisplayPage() {
                         {appointment.customerName}
                       </span>
                     ) : !appointment ? (
-                      <span className="text-green-400">Open</span>
+                      <span className="text-green-400">{txt("Vrij", "Open")}</span>
                     ) : (
                       <span className="text-slate-grey line-through truncate">
-                        Done
+                        {txt("Klaar", "Done")}
                       </span>
                     )}
                   </div>
@@ -292,13 +298,13 @@ export default function TVDisplayPage() {
       </div>
 
       {/* Footer */}
-      <footer className="px-8 py-3 border-t border-slate-grey/20 flex items-center justify-between">
-        <p className="text-slate-grey text-sm">
-          Book online at{" "}
-          <span className="text-antique-gold font-heading">tiptopbarbershop.com/book</span>
+      <footer className="px-8 py-3 border-t border-[#2A2A2A] bg-[#111111]/55 flex items-center justify-between">
+        <p className="text-slate-grey text-sm" style={accentFont}>
+          {txt("Boek online via", "Book online at")} {" "}
+          <span className="text-antique-gold" style={headingFont}>tiptopbarbershop.com/book</span>
         </p>
-        <p className="text-slate-grey text-sm">
-          Scan the QR code to control the music from your phone
+        <p className="text-slate-grey text-sm" style={accentFont}>
+          {txt("Scan de QR-code om muziek te bedienen vanaf je telefoon", "Scan the QR code to control the music from your phone")}
         </p>
       </footer>
     </div>

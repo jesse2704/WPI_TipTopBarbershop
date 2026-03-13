@@ -1,4 +1,4 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import Stripe from "stripe";
 import * as nodemailer from "nodemailer";
@@ -10,10 +10,13 @@ const EMAIL_PORT    = defineSecret("EMAIL_PORT");
 const EMAIL_USER    = defineSecret("EMAIL_USER");
 const EMAIL_PASS    = defineSecret("EMAIL_PASS");
 const EMAIL_FROM    = defineSecret("EMAIL_FROM");
+const GOOGLE_MAPS_API_KEY = defineSecret("GOOGLE_MAPS_API_KEY");
 
 const ALLOWED_ORIGINS = [
   "https://tiptopbarbershop.nl",
   "https://www.tiptopbarbershop.nl",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
   "http://localhost:5173",
   "http://localhost:5174",
 ];
@@ -31,9 +34,101 @@ interface BookingPayload {
   contactInfo: string;
 }
 
+interface PublicGoogleReview {
+  authorName: string;
+  rating: number;
+  text: string;
+  publishTime?: string;
+  relativeTimeDescription?: string;
+  authorUrl?: string;
+}
+
+async function createStripeSession(booking: BookingPayload, baseUrl: string): Promise<{ sessionUrl: string | null }> {
+  const stripe = new Stripe(STRIPE_SECRET.value());
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card", "ideal"],
+    mode: "payment",
+    line_items: [
+      {
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: "Booking Deposit — Tip Top Barbershop",
+            description: `${booking.serviceName} · ${booking.formattedDate} at ${booking.formattedTime}`,
+          },
+          unit_amount: 500, // EUR 5.00
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      customerName: booking.customerName,
+      email: booking.email ?? "",
+      serviceName: booking.serviceName,
+      serviceDuration: String(booking.serviceDuration),
+      date: booking.date,
+      time: booking.time,
+      formattedDate: booking.formattedDate,
+      formattedTime: booking.formattedTime,
+      contactInfo: booking.contactInfo,
+    },
+    customer_email: booking.email ?? undefined,
+    success_url: `${baseUrl}/book?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/book?payment=cancelled`,
+  });
+
+  return { sessionUrl: session.url };
+}
+
+async function verifySessionAndSendEmail(sessionId: string): Promise<{ ok: true; meta: Record<string, string> }> {
+  const stripe = new Stripe(STRIPE_SECRET.value());
+
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId);
+  } catch {
+    throw new HttpsError("not-found", "Stripe session not found.");
+  }
+
+  if (session.payment_status !== "paid") {
+    throw new HttpsError("failed-precondition", "Payment not completed.");
+  }
+
+  const meta = session.metadata as Record<string, string>;
+  const toEmail = meta.email;
+
+  if (toEmail) {
+    const transporter = nodemailer.createTransport({
+      host: EMAIL_HOST.value(),
+      port: Number(EMAIL_PORT.value()),
+      secure: Number(EMAIL_PORT.value()) === 465,
+      auth: {
+        user: EMAIL_USER.value(),
+        pass: EMAIL_PASS.value(),
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"Tip Top Barbershop" <${EMAIL_FROM.value() || EMAIL_USER.value()}>`,
+      to: toEmail,
+      subject: "✅ Booking Confirmed — Tip Top Barbershop",
+      html: buildHtmlEmail(meta),
+      text: buildTextEmail(meta),
+    });
+  }
+
+  return { ok: true, meta };
+}
+
 /* ── 1. Create Stripe Checkout Session ─────────────────────────────── */
 export const createCheckoutSession = onCall(
-  { secrets: [STRIPE_SECRET], region: "europe-west1", cors: ALLOWED_ORIGINS },
+  {
+    secrets: [STRIPE_SECRET],
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
   async (req) => {
     const { booking, baseUrl } = req.data as {
       booking: BookingPayload;
@@ -44,41 +139,40 @@ export const createCheckoutSession = onCall(
       throw new HttpsError("invalid-argument", "Missing required booking fields.");
     }
 
-    const stripe = new Stripe(STRIPE_SECRET.value());
+    return createStripeSession(booking, baseUrl);
+  }
+);
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: "Booking Deposit — Tip Top Barbershop",
-              description: `${booking.serviceName} · ${booking.formattedDate} at ${booking.formattedTime}`,
-            },
-            unit_amount: 500, // €5.00
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        customerName: booking.customerName,
-        email: booking.email ?? "",
-        serviceName: booking.serviceName,
-        serviceDuration: String(booking.serviceDuration),
-        date: booking.date,
-        time: booking.time,
-        formattedDate: booking.formattedDate,
-        formattedTime: booking.formattedTime,
-        contactInfo: booking.contactInfo,
-      },
-      customer_email: booking.email ?? undefined,
-      success_url: `${baseUrl}/book?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url:  `${baseUrl}/book?payment=cancelled`,
-    });
+export const createCheckoutSessionHttp = onRequest(
+  {
+    secrets: [STRIPE_SECRET],
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "method-not-allowed" });
+      return;
+    }
 
-    return { sessionUrl: session.url };
+    try {
+      const { booking, baseUrl } = req.body as {
+        booking: BookingPayload;
+        baseUrl: string;
+      };
+
+      if (!booking?.date || !booking?.time || !booking?.serviceName || !baseUrl) {
+        res.status(400).json({ error: "Missing required booking fields." });
+        return;
+      }
+
+      const result = await createStripeSession(booking, baseUrl);
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("createCheckoutSessionHttp failed", error);
+      res.status(500).json({ error: "Unable to create checkout session." });
+    }
   }
 );
 
@@ -88,6 +182,7 @@ export const verifyPaymentAndEmail = onCall(
     secrets: [STRIPE_SECRET, EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM],
     region: "europe-west1",
     cors: ALLOWED_ORIGINS,
+    invoker: "public",
   },
   async (req) => {
     const { sessionId } = req.data as { sessionId: string };
@@ -96,43 +191,138 @@ export const verifyPaymentAndEmail = onCall(
       throw new HttpsError("invalid-argument", "sessionId is required.");
     }
 
-    const stripe = new Stripe(STRIPE_SECRET.value());
+    return verifySessionAndSendEmail(sessionId);
+  }
+);
 
-    let session: Stripe.Checkout.Session;
+export const verifyPaymentAndEmailHttp = onRequest(
+  {
+    secrets: [STRIPE_SECRET, EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM],
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "method-not-allowed" });
+      return;
+    }
+
+    const { sessionId } = req.body as { sessionId: string };
+    if (!sessionId || typeof sessionId !== "string") {
+      res.status(400).json({ error: "sessionId is required." });
+      return;
+    }
+
     try {
-      session = await stripe.checkout.sessions.retrieve(sessionId);
-    } catch {
-      throw new HttpsError("not-found", "Stripe session not found.");
+      const result = await verifySessionAndSendEmail(sessionId);
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("verifyPaymentAndEmailHttp failed", error);
+      res.status(500).json({ error: "Unable to verify payment." });
+    }
+  }
+);
+
+/* ── 3. Public Google Reviews ──────────────────────────────────────── */
+export const getGoogleReviewsHttp = onRequest(
+  {
+    secrets: [GOOGLE_MAPS_API_KEY],
+    region: "europe-west1",
+    cors: ALLOWED_ORIGINS,
+    invoker: "public",
+  },
+  async (req, res) => {
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "method-not-allowed" });
+      return;
     }
 
-    if (session.payment_status !== "paid") {
-      throw new HttpsError("failed-precondition", "Payment not completed.");
-    }
+    try {
+      const apiKey = GOOGLE_MAPS_API_KEY.value();
+      if (!apiKey) {
+        res.status(500).json({ error: "Google Maps API key is missing." });
+        return;
+      }
 
-    const meta = session.metadata as Record<string, string>;
-    const toEmail = meta.email;
+      const searchResponse = await fetch("https://places.googleapis.com/v1/places:searchText", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "places.id,places.displayName",
+        },
+        body: JSON.stringify({
+          textQuery: "TIP TOP BARBERSHOP Netherlands",
+          languageCode: "nl",
+          regionCode: "nl",
+          maxResultCount: 1,
+        }),
+      });
 
-    if (toEmail) {
-      const transporter = nodemailer.createTransport({
-        host: EMAIL_HOST.value(),
-        port: Number(EMAIL_PORT.value()),
-        secure: Number(EMAIL_PORT.value()) === 465,
-        auth: {
-          user: EMAIL_USER.value(),
-          pass: EMAIL_PASS.value(),
+      if (!searchResponse.ok) {
+        const errorText = await searchResponse.text();
+        console.error("Google Places search failed", errorText);
+        res.status(502).json({ error: "Failed to query Google Places." });
+        return;
+      }
+
+      const searchData = (await searchResponse.json()) as { places?: Array<{ id?: string }> };
+      const placeId = searchData.places?.[0]?.id;
+
+      if (!placeId) {
+        res.status(404).json({ error: "Place not found." });
+        return;
+      }
+
+      const detailsResponse = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
+        method: "GET",
+        headers: {
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "displayName,rating,userRatingCount,reviews",
         },
       });
 
-      await transporter.sendMail({
-        from: `"Tip Top Barbershop" <${EMAIL_FROM.value() || EMAIL_USER.value()}>`,
-        to: toEmail,
-        subject: "✅ Booking Confirmed — Tip Top Barbershop",
-        html: buildHtmlEmail(meta),
-        text: buildTextEmail(meta),
-      });
-    }
+      if (!detailsResponse.ok) {
+        const errorText = await detailsResponse.text();
+        console.error("Google Places details failed", errorText);
+        res.status(502).json({ error: "Failed to fetch Google review details." });
+        return;
+      }
 
-    return { ok: true, meta };
+      const detailsData = (await detailsResponse.json()) as {
+        rating?: number;
+        userRatingCount?: number;
+        reviews?: Array<{
+          rating?: number;
+          publishTime?: string;
+          relativePublishTimeDescription?: string;
+          text?: { text?: string };
+          authorAttribution?: { displayName?: string; uri?: string };
+        }>;
+      };
+
+      const reviews: PublicGoogleReview[] = (detailsData.reviews ?? [])
+        .slice(0, 6)
+        .map((review) => ({
+          authorName: review.authorAttribution?.displayName ?? "Google User",
+          rating: review.rating ?? 5,
+          text: review.text?.text ?? "",
+          publishTime: review.publishTime,
+          relativeTimeDescription: review.relativePublishTimeDescription,
+          authorUrl: review.authorAttribution?.uri,
+        }))
+        .filter((review) => review.text.trim().length > 0);
+
+      res.status(200).json({
+        rating: detailsData.rating ?? null,
+        userRatingCount: detailsData.userRatingCount ?? 0,
+        reviews,
+      });
+    } catch (error) {
+      console.error("getGoogleReviewsHttp failed", error);
+      res.status(500).json({ error: "Unable to load Google reviews." });
+    }
   }
 );
 

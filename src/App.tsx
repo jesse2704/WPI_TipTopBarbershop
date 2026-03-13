@@ -3,11 +3,10 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
-import { AuthProvider as AppAuthProvider, useAuth } from '@/lib/AuthContext';
 import { AuthProvider as BarberAuthProvider } from './context/AuthContext';
 import { BookingProvider } from './context/BookingContext';
 import { PhoneAuthProvider } from './context/PhoneAuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { LanguageProvider } from './context/LanguageContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Services from './pages/Services';
@@ -19,32 +18,10 @@ import TVDisplayPage from './pages/TVDisplayPage';
 import RemoteControlPage from './pages/RemoteControlPage';
 import BarberLoginPage from './pages/BarberLoginPage';
 import BarberDashboardPage from './pages/BarberDashboardPage';
+import BarberClientsPage from './pages/BarberClientsPage';
 import Layout from './components/Layout';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
-
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  // Handle authentication errors
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
-    }
-  }
-
-  // Render the main app
   return (
     <Routes>
       <Route path="/book" element={<BookingPage />} />
@@ -56,6 +33,14 @@ const AuthenticatedApp = () => {
         element={
           <ProtectedRoute>
             <BarberDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/barber/clients"
+        element={
+          <ProtectedRoute>
+            <BarberClientsPage />
           </ProtectedRoute>
         }
       />
@@ -75,7 +60,7 @@ const AuthenticatedApp = () => {
 function App() {
 
   return (
-    <AppAuthProvider>
+    <LanguageProvider>
       <QueryClientProvider client={queryClientInstance}>
         <BarberAuthProvider>
           <BookingProvider>
@@ -88,7 +73,7 @@ function App() {
         </BarberAuthProvider>
         <Toaster />
       </QueryClientProvider>
-    </AppAuthProvider>
+    </LanguageProvider>
   )
 }
 

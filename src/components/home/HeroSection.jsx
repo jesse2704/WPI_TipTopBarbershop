@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function HeroSection() {
+  const { txt } = useLanguage();
+
   return (
     <section className="relative h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image */}
@@ -29,7 +32,10 @@ export default function HeroSection() {
             <p className="text-xl md:text-2xl tracking-[0.5em] uppercase text-[#C5A059] mb-6" style={{fontFamily:"'Lora', serif"}}>Barbershop</p>
           </div>
           <p className="text-white/50 text-lg md:text-xl max-w-xl mx-auto mb-10 leading-relaxed" style={{fontFamily:"'Lora', serif"}}>
-            Expert cuts, classic shaves, and a grooming experience tailored to the modern gentleman.
+            {txt(
+              'Vakkundige coupes, klassieke scheerbeurten en een grooming-ervaring voor de moderne man.',
+              'Expert cuts, classic shaves, and a grooming experience tailored to the modern gentleman.'
+            )}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -37,7 +43,7 @@ export default function HeroSection() {
               className="group px-10 py-4 font-bold text-sm tracking-wider uppercase flex items-center gap-3 transition-colors"
               style={{backgroundColor:'#C5A059', color:'#1A1A1A', fontFamily:"'Roboto Condensed', sans-serif"}}
             >
-              Book Appointment
+              {txt('Afspraak Boeken', 'Book Appointment')}
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
             <Link
@@ -45,7 +51,7 @@ export default function HeroSection() {
               className="px-10 py-4 border border-white/20 text-white text-sm tracking-wider uppercase hover:border-white/40 transition-colors"
               style={{fontFamily:"'Roboto Condensed', sans-serif"}}
             >
-              Our Services
+              {txt('Onze Diensten', 'Our Services')}
             </Link>
           </div>
         </motion.div>

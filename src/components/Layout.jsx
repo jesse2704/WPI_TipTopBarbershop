@@ -2,54 +2,28 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { Menu, X, Scissors, Phone, MapPin, Clock, Instagram, Facebook } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '../context/LanguageContext';
 
 const NAV_LINKS = [
-  { label: 'Home', path: '/Home' },
-  { label: 'Services', path: '/Services' },
-  { label: 'Gallery', path: '/Gallery' },
-  { label: 'About', path: '/About' },
-  { label: 'Contact', path: '/Contact' },
+  { labelNl: 'Home', labelEn: 'Home', path: '/Home' },
+  { labelNl: 'Diensten', labelEn: 'Services', path: '/Services' },
+  { labelNl: 'Galerij', labelEn: 'Gallery', path: '/Gallery' },
+  { labelNl: 'Over Ons', labelEn: 'About', path: '/About' },
+  { labelNl: 'Contact', labelEn: 'Contact', path: '/Contact' },
 ];
 
 const STAFF_LINKS = [
-  { label: 'TV', path: '/tv' },
-  { label: 'Dashboard', path: '/barber/dashboard' },
+  { labelNl: 'TV', labelEn: 'TV', path: '/tv' },
+  { labelNl: 'Dashboard', labelEn: 'Dashboard', path: '/barber/dashboard' },
 ];
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { language, setLanguage, txt } = useLanguage();
   const location = useLocation();
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] text-white">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Roboto+Condensed:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
-
-        :root {
-          --gold: #C5A059;
-          --gold-light: #D4B470;
-          --cream: #FDFCF0;
-          --dark: #1A1A1A;
-          --dark-card: #141414;
-          --dark-border: #2A2A2A;
-          --slate: #4D4D4D;
-        }
-
-        body {
-          background-color: #1A1A1A;
-        }
-
-        h1, h2, h3, h4, h5, h6, .heading-font {
-          font-family: 'Roboto Condensed', 'Arial Narrow', sans-serif;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        p, span, a, li, .body-font {
-          font-family: 'Lora', Georgia, serif;
-        }
-      `}</style>
-
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#1A1A1A]/95 backdrop-blur-md border-b border-[#2A2A2A]">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -67,16 +41,14 @@ export default function Layout() {
               <Link
                 key={link.path}
                 to={link.path}
-                className={`text-sm tracking-widest uppercase transition-colors duration-300`}
+                className={`text-sm tracking-widest uppercase transition-colors duration-300 ${
+                  location.pathname === link.path ? 'text-[#C5A059]' : 'text-white/65 hover:text-white'
+                }`}
                 style={{
                   fontFamily: "'Roboto Condensed', sans-serif",
-                  color: location.pathname === link.path ? '#C5A059' : undefined,
-                  opacity: location.pathname === link.path ? 1 : undefined,
                 }}
-                onMouseEnter={e => { if(location.pathname !== link.path) e.target.style.color='#fff'; }}
-                onMouseLeave={e => { if(location.pathname !== link.path) e.target.style.color=''; }}
               >
-                {link.label}
+                {txt(link.labelNl, link.labelEn)}
               </Link>
             ))}
             <div className="h-5 w-px bg-[#2A2A2A]" />
@@ -87,9 +59,23 @@ export default function Layout() {
                 className="text-xs tracking-[0.2em] uppercase transition-colors duration-300 text-white/50 hover:text-[#C5A059]"
                 style={{ fontFamily: "'Roboto Condensed', sans-serif" }}
               >
-                {link.label}
+                {txt(link.labelNl, link.labelEn)}
               </Link>
             ))}
+            <div className="ml-1 flex items-center rounded-md border border-[#2A2A2A] p-0.5 text-xs">
+              <button
+                onClick={() => setLanguage('nl')}
+                className={`rounded px-2 py-1 transition-colors ${language === 'nl' ? 'bg-[#C5A059] text-[#1A1A1A]' : 'text-white/70 hover:text-white'}`}
+              >
+                NL
+              </button>
+              <button
+                onClick={() => setLanguage('en')}
+                className={`rounded px-2 py-1 transition-colors ${language === 'en' ? 'bg-[#C5A059] text-[#1A1A1A]' : 'text-white/70 hover:text-white'}`}
+              >
+                EN
+              </button>
+            </div>
             <Link
               to="/book"
               className="ml-4 px-6 py-2.5 text-[#1A1A1A] text-sm font-bold tracking-wider uppercase rounded-none transition-colors"
@@ -97,7 +83,7 @@ export default function Layout() {
               onMouseEnter={e=>e.currentTarget.style.backgroundColor='#D4B470'}
               onMouseLeave={e=>e.currentTarget.style.backgroundColor='#C5A059'}
             >
-              Book Now
+              {txt('Boek Nu', 'Book Now')}
             </Link>
           </div>
 
@@ -130,7 +116,7 @@ export default function Layout() {
                     }`}
               style={{fontFamily:"'Roboto Condensed', sans-serif"}}
                   >
-                    {link.label}
+                    {txt(link.labelNl, link.labelEn)}
                   </Link>
                 ))}
                 <div className="mt-1 pt-3 border-t border-[#1E1E1E]" />
@@ -142,16 +128,30 @@ export default function Layout() {
                     className="text-xs tracking-[0.2em] uppercase py-2 text-white/50 hover:text-[#C5A059]"
                     style={{ fontFamily: "'Roboto Condensed', sans-serif" }}
                   >
-                    {link.label}
+                    {txt(link.labelNl, link.labelEn)}
                   </Link>
                 ))}
+                <div className="mt-1 flex items-center gap-2">
+                  <button
+                    onClick={() => setLanguage('nl')}
+                    className={`rounded border px-2 py-1 text-xs ${language === 'nl' ? 'border-[#C5A059] bg-[#C5A059] text-[#1A1A1A]' : 'border-[#2A2A2A] text-white/70'}`}
+                  >
+                    NL
+                  </button>
+                  <button
+                    onClick={() => setLanguage('en')}
+                    className={`rounded border px-2 py-1 text-xs ${language === 'en' ? 'border-[#C5A059] bg-[#C5A059] text-[#1A1A1A]' : 'border-[#2A2A2A] text-white/70'}`}
+                  >
+                    EN
+                  </button>
+                </div>
                 <Link
                   to="/book"
                   onClick={() => setMobileOpen(false)}
                   className="mt-2 px-6 py-3 text-[#1A1A1A] text-sm font-bold tracking-wider uppercase text-center"
                   style={{backgroundColor:'#C5A059', fontFamily:"'Roboto Condensed', sans-serif"}}
                 >
-                  Book Now
+                  {txt('Boek Nu', 'Book Now')}
                 </Link>
               </div>
             </motion.div>
@@ -177,52 +177,62 @@ export default function Layout() {
                 </div>
               </div>
               <p className="text-white/40 text-sm leading-relaxed" style={{fontFamily:"'Lora', serif"}}>
-                Premium grooming experience for the modern gentleman. Crafted cuts, classic shaves, timeless style.
+                {txt(
+                  'Premium grooming voor de moderne man. Strakke coupes, klassieke scheerbeurten en tijdloze stijl.',
+                  'Premium grooming experience for the modern gentleman. Crafted cuts, classic shaves, timeless style.'
+                )}
               </p>
             </div>
 
             <div>
-              <h4 className="text-[#C5A059] text-xs tracking-widest uppercase mb-4" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>Quick Links</h4>
+              <h4 className="text-[#C5A059] text-xs tracking-widest uppercase mb-4" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>{txt('Snelle Links', 'Quick Links')}</h4>
               <div className="flex flex-col gap-2.5">
                 {NAV_LINKS.map(link => (
                   <Link key={link.path} to={link.path} className="text-sm text-white/40 hover:text-white transition-colors">
-                    {link.label}
+                    {txt(link.labelNl, link.labelEn)}
                   </Link>
                 ))}
               </div>
             </div>
 
             <div>
-              <h4 className="text-[#C5A059] text-xs tracking-widest uppercase mb-4" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>Hours</h4>
+              <h4 className="text-[#C5A059] text-xs tracking-widest uppercase mb-4" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>{txt('Openingstijden', 'Hours')}</h4>
               <div className="flex flex-col gap-2.5 text-sm text-white/40">
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>Mon – Fri: 9AM – 8PM</span>
+                  <span>{txt('Ma – Vr: 9:00 – 20:00', 'Mon – Fri: 9AM – 8PM')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>Saturday: 9AM – 6PM</span>
+                  <span>{txt('Zaterdag: 9:00 – 18:00', 'Saturday: 9AM – 6PM')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>Sunday: 10AM – 4PM</span>
+                  <span>{txt('Zondag: 10:00 – 16:00', 'Sunday: 10AM – 4PM')}</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h4 className="text-[#C5A059] text-xs tracking-widest uppercase mb-4" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>Contact</h4>
+              <h4 className="text-[#C5A059] text-xs tracking-widest uppercase mb-4" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>{txt('Contact', 'Contact')}</h4>
               <div className="flex flex-col gap-2.5 text-sm text-white/40">
                 <div className="flex items-center gap-2">
                   <Phone className="w-3.5 h-3.5" />
-                  <span>(555) 123-4567</span>
+                  <a href="tel:+31617886799" className="hover:text-white transition-colors">06 17886799</a>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-3.5 h-3.5" />
-                  <span>123 Main Street, Downtown</span>
+                  <a
+                    href="https://maps.google.com/maps?vet=10CAAQoqAOahcKEwj4p-aJnJ2TAxUAAAAAHQAAAAAQDA..i&sca_esv=d087776caa853f74&pvq=Cg0vZy8xMXZqMjZ2aGh2IhYKEHRpcHRvcGJhcmJlcnNob3AQAhgD&lqi=ChB0aXB0b3BiYXJiZXJzaG9wSPr7tKPAuoCACFoWEAAYACIQdGlwdG9wYmFyYmVyc2hvcJIBEnVuaXNleF9oYWlyZHJlc3Nlcg&fvr=1&cs=0&um=1&ie=UTF-8&fb=1&gl=nl&sa=X&ftid=0x47c5b7575fdf3cef:0xb5293e770dbdf116"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-white transition-colors"
+                  >
+                    {txt('Bekijk op Google Maps', 'View on Google Maps')}
+                  </a>
                 </div>
                 <div className="flex items-center gap-3 mt-3">
-                  <a href="#" className="text-white/40 hover:text-[#C5A059] transition-colors">
+                  <a href="https://www.instagram.com/tiptopbarbershopnl/" target="_blank" rel="noreferrer" className="text-white/40 hover:text-[#C5A059] transition-colors">
                     <Instagram className="w-5 h-5" />
                   </a>
                   <a href="#" className="text-white/40 hover:text-[#C5A059] transition-colors">
@@ -234,7 +244,7 @@ export default function Layout() {
           </div>
 
           <div className="mt-12 pt-8 border-t border-[#2A2A2A] text-center text-xs text-white/20 tracking-wider" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>
-            © 2026 TIP TOP BARBERSHOP. ALL RIGHTS RESERVED.
+            {txt('© 2026 TIP TOP BARBERSHOP. ALLE RECHTEN VOORBEHOUDEN.', '© 2026 TIP TOP BARBERSHOP. ALL RIGHTS RESERVED.')}
           </div>
         </div>
       </footer>

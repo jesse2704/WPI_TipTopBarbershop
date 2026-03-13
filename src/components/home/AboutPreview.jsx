@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function AboutPreview() {
+  const { txt } = useLanguage();
+
   return (
     <section className="py-24 md:py-32 px-6 bg-[#111111]">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
@@ -45,22 +48,28 @@ export default function AboutPreview() {
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
         >
-          <p className="text-[#C5A059] text-xs tracking-[0.4em] uppercase mb-3 font-semibold" style={{fontFamily:"'Lora', serif"}}>Our Story</p>
+          <p className="text-[#C5A059] text-xs tracking-[0.4em] uppercase mb-3 font-semibold" style={{fontFamily:"'Lora', serif"}}>{txt('Ons Verhaal', 'Our Story')}</p>
           <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-6 leading-tight" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>
-            Crafted Excellence,<br />Built on Care
+            {txt('Ambachtelijke Klasse,', 'Crafted Excellence,')}<br />{txt('Gebouwd op Zorg', 'Built on Care')}
           </h2>
           <p className="text-white/60 leading-relaxed mb-5" style={{fontFamily:"'Lora', serif"}}>
-            Tip Top Barbershop isn't just another place to get a haircut. We're a sanctuary where traditional barber craftsmanship meets genuine hospitality. Our team takes pride in every detail — from the precision of the cut to the warmth of the conversation.
+            {txt(
+              'Tip Top Barbershop is meer dan alleen een plek voor een knipbeurt. Het is een plek waar traditioneel vakmanschap en oprechte gastvrijheid samenkomen. Ons team let op elk detail, van de precisie van de coupe tot de warmte van het contact.',
+              "Tip Top Barbershop isn't just another place to get a haircut. We're a sanctuary where traditional barber craftsmanship meets genuine hospitality. Our team takes pride in every detail — from the precision of the cut to the warmth of the conversation."
+            )}
           </p>
           <p className="text-white/60 leading-relaxed mb-8" style={{fontFamily:"'Lora', serif"}}>
-            We believe that looking sharp is about feeling confident. That's why we invest in premium products, continuous training, and most importantly, taking time to understand what you want. When you sit in our chair, you're not just a customer — you're part of the Tip Top family.
+            {txt(
+              'Er goed uitzien gaat om zelfvertrouwen. Daarom investeren we in premium producten, continue training en vooral in het goed luisteren naar jouw wensen. In onze stoel ben je niet zomaar klant, je bent onderdeel van de Tip Top familie.',
+              "We believe that looking sharp is about feeling confident. That's why we invest in premium products, continuous training, and most importantly, taking time to understand what you want. When you sit in our chair, you're not just a customer — you're part of the Tip Top family."
+            )}
           </p>
           <Link
             to="/About"
             className="inline-block px-8 py-3.5 border-2 border-[#C5A059] text-[#C5A059] text-sm tracking-wider uppercase font-semibold hover:bg-[#C5A059] hover:text-[#111111] transition-all duration-300"
             style={{fontFamily:"'Roboto Condensed', sans-serif"}}
           >
-            Our Journey
+            {txt('Onze Reis', 'Our Journey')}
           </Link>
         </motion.div>
       </div>

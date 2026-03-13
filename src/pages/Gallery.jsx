@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 const GALLERY_IMAGES = [
   { src: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=600&q=80', alt: 'Classic fade haircut' },
@@ -12,24 +13,25 @@ const GALLERY_IMAGES = [
 ];
 
 export default function Gallery() {
+  const { txt } = useLanguage();
   const [lightbox, setLightbox] = useState(null);
 
   return (
-    <div>
+    <div className="brand-page">
       {/* Header */}
-      <section className="pt-32 pb-16 px-6 text-center">
+      <section className="brand-section brand-hero-header text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <p className="text-[#C5A059] text-xs tracking-[0.4em] uppercase mb-4" style={{fontFamily:"'Lora', serif"}}>Our Work</p>
-          <h1 className="text-5xl md:text-6xl font-black tracking-tight" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>Gallery</h1>
+          <p className="brand-kicker">{txt('Ons Werk', 'Our Work')}</p>
+          <h1 className="brand-title">{txt('Galerij', 'Gallery')}</h1>
         </motion.div>
       </section>
 
       {/* Gallery Grid */}
-      <section className="pb-32 px-6">
+      <section className="brand-section pb-32">
         <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {GALLERY_IMAGES.map((img, i) => (
             <motion.div
@@ -37,7 +39,7 @@ export default function Gallery() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
-              className="aspect-square overflow-hidden cursor-pointer group"
+              className="aspect-square overflow-hidden cursor-pointer group border border-[#2A2A2A] bg-[#141414]"
               onClick={() => setLightbox(img)}
             >
               <img

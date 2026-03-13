@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Scissors, SprayCan, Sparkles } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const SERVICES = [
   {
@@ -24,6 +25,8 @@ const SERVICES = [
 ];
 
 export default function ServicesPreview() {
+  const { txt } = useLanguage();
+
   return (
     <section className="py-24 md:py-32 px-6">
       <div className="max-w-6xl mx-auto">
@@ -34,8 +37,8 @@ export default function ServicesPreview() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <p className="text-[#C5A059] text-xs tracking-[0.4em] uppercase mb-4" style={{fontFamily:"'Lora', serif"}}>What We Offer</p>
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>Our Services</h2>
+          <p className="text-[#C5A059] text-xs tracking-[0.4em] uppercase mb-4" style={{fontFamily:"'Lora', serif"}}>{txt('Wat Wij Aanbieden', 'What We Offer')}</p>
+          <h2 className="text-4xl md:text-5xl font-black tracking-tight" style={{fontFamily:"'Roboto Condensed', sans-serif"}}>{txt('Onze Diensten', 'Our Services')}</h2>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -64,7 +67,7 @@ export default function ServicesPreview() {
             className="text-[#C5A059] text-sm tracking-widest uppercase hover:text-[#D4B470] transition-colors"
             style={{fontFamily:"'Roboto Condensed', sans-serif"}}
           >
-            View All Services →
+            {txt('Bekijk Alle Diensten', 'View All Services')} →
           </Link>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   DragDropContext,
   Droppable,
@@ -176,6 +177,13 @@ export default function BarberDashboardPage() {
             </div>
 
             <div className="bg-stark-white rounded-xl border border-slate-grey/15 shadow-sm px-4 py-3 flex items-center gap-3">
+              <Link
+                to="/barber/clients"
+                className="px-3 py-1.5 rounded-lg border border-antique-gold text-antique-gold hover:bg-antique-gold/10 transition-colors text-xs font-semibold"
+                style={headingFont}
+              >
+                Client Hub
+              </Link>
               <label className="text-sm font-semibold text-deep-black whitespace-nowrap" style={headingFont}>
                 Break
               </label>

@@ -1,42 +1,74 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from "react";
+import {
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  type User,
+} from "firebase/auth";
+import { auth } from "../lib/firebase";
 
 interface AuthContextType {
+  user: User | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  loading: boolean;
+  error: string | null;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const USERS: Record<string, string> = {
-  barber: "tiptop123",
-  test: "test123",
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem("barber_auth") === "true";
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem("barber_auth", String(isAuthenticated));
-  }, [isAuthenticated]);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
 
-  const login = (username: string, password: string): boolean => {
-    if (USERS[username] && USERS[username] === password) {
-      setIsAuthenticated(true);
-      return true;
+  const signInWithGoogle = useCallback(async () => {
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setError(err?.message ?? "Google sign-in failed.");
     }
-    return false;
-  };
+  }, []);
 
-  const logout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem("barber_auth");
-  };
+  const signInWithApple = useCallback(async () => {
+    setError(null);
+    try {
+      const provider = new OAuthProvider("apple.com");
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setError(err?.message ?? "Apple sign-in failed.");
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    await signOut(auth);
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, isAuthenticated: !!user, loading, error, signInWithGoogle, signInWithApple, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

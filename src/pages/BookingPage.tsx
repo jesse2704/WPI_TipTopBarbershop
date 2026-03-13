@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "../lib/firebase";
 import { services } from "../data/services";
 import { useBooking, WORKING_TIME_SLOTS } from "../context/BookingContext";
 import { usePhoneAuth } from "../context/PhoneAuthContext";
-import type { Appointment } from "../types";
 
-/* ── helpers ─────────────────────────────────────────────────── */
+const headingFont = { fontFamily: "'Roboto Condensed', 'Arial Narrow', sans-serif" };
+const accentFont = { fontFamily: "'Lora', serif" };
 
 function toIso(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -41,16 +42,156 @@ function buildNext14Days(): string[] {
   return days;
 }
 
-/* ── Phone Login Screen ──────────────────────────────────────── */
+function isClosedWeekDay(dateIso: string): boolean {
+  const day = new Date(dateIso + "T12:00:00").getDay();
+  return day === 0 || day === 1;
+}
+
+function toCalendarStamp(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+function buildDateTime(dateIso: string, time: string): Date {
+  const [year, month, day] = dateIso.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0);
+}
+
+function escapeIcs(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function BrandMasthead({ subtitle }: { subtitle: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-[#C5A059]/25 bg-[#111111] px-6 py-7 shadow-xl md:px-8 md:py-8">
+      <div className="absolute -top-12 -right-16 h-44 w-44 rounded-full bg-[#C5A059]/15 blur-2xl" />
+      <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+      <div className="relative">
+        <p className="text-[10px] uppercase tracking-[0.45em] text-[#C5A059]" style={accentFont}>
+          Tip Top Barbershop
+        </p>
+        <h1 className="mt-2 text-4xl font-black leading-[0.9] text-white md:text-5xl" style={headingFont}>
+          Booking Studio
+        </h1>
+        <p className="mt-2 text-sm text-white/60" style={accentFont}>{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+interface SuccessData {
+  customerName: string;
+  serviceName: string;
+  serviceDuration: number;
+  date: string;
+  time: string;
+  email: string | null;
+}
+
+function BookingSuccessScreen({ data }: { data: SuccessData }) {
+  const start = buildDateTime(data.date, data.time);
+  const end = new Date(start.getTime() + data.serviceDuration * 60_000);
+  const title = `Barber Appointment - ${data.serviceName}`;
+  const details = `Booking for ${data.customerName}. Service: ${data.serviceName} (${data.serviceDuration} min).`;
+  const location = "Tip Top Barbershop";
+
+  const openGoogleCalendar = () => {
+    const url = new URL("https://calendar.google.com/calendar/render");
+    url.searchParams.set("action", "TEMPLATE");
+    url.searchParams.set("text", title);
+    url.searchParams.set("details", details);
+    url.searchParams.set("location", location);
+    url.searchParams.set("dates", `${toCalendarStamp(start)}/${toCalendarStamp(end)}`);
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
+  };
+
+  const downloadIcs = () => {
+    const uid = `${crypto.randomUUID()}@tiptopbarbershop`;
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Tip Top Barbershop//Booking//EN",
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `DTSTAMP:${toCalendarStamp(new Date())}`,
+      `DTSTART:${toCalendarStamp(start)}`,
+      `DTEND:${toCalendarStamp(end)}`,
+      `SUMMARY:${escapeIcs(title)}`,
+      `DESCRIPTION:${escapeIcs(details)}`,
+      `LOCATION:${escapeIcs(location)}`,
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = "tiptop-booking.ics";
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  };
+
+  return (
+    <div className="min-h-screen bg-vintage-cream px-4 py-8 md:py-12">
+      <div className="mx-auto max-w-3xl space-y-6">
+        <BrandMasthead subtitle="Your appointment is secured and paid." />
+
+        <div className="rounded-2xl border border-slate-grey/15 bg-stark-white p-8 text-center shadow-lg md:p-10">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+            <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+
+          <h2 className="text-2xl font-black text-deep-black md:text-3xl" style={headingFont}>Booking Confirmed</h2>
+          <p className="mt-3 text-slate-grey" style={accentFont}>
+            {shortDay(data.date)} {shortDate(data.date)} at <strong className="text-deep-black">{formatTime(data.time)}</strong>
+          </p>
+          <p className="text-slate-grey" style={accentFont}>
+            Service: <strong className="text-deep-black">{data.serviceName}</strong>
+          </p>
+          {data.email && (
+            <p className="mt-3 text-sm font-medium text-green-700">Confirmation sent to {data.email}</p>
+          )}
+          <p className="mt-2 text-xs text-slate-grey/70">EUR 5 deposit will be deducted from your total at checkout.</p>
+
+          <div className="mx-auto mt-7 grid max-w-md gap-2">
+            <button
+              onClick={openGoogleCalendar}
+              className="rounded-lg bg-[#C5A059] px-4 py-2.5 font-semibold text-[#1A1A1A] transition-colors hover:bg-[#b49149]"
+              style={headingFont}
+            >
+              Add to Google Calendar
+            </button>
+            <button
+              onClick={downloadIcs}
+              className="rounded-lg border border-slate-grey/30 px-4 py-2.5 font-semibold text-deep-black transition-colors hover:bg-slate-50"
+              style={headingFont}
+            >
+              Download Calendar File (.ics)
+            </button>
+            <a
+              href="/"
+              className="rounded-lg border border-slate-grey/30 px-4 py-2.5 text-center font-semibold text-deep-black transition-colors hover:bg-slate-50"
+              style={headingFont}
+            >
+              Back to Home
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function PhoneLoginGate({ onVerified }: { onVerified: () => void }) {
-  const { user, loading, error, busy, sendCode, verifyCode } = usePhoneAuth();
+  const { user, loading, error, busy, signInWithGoogle, signInWithApple } = usePhoneAuth();
 
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"phone" | "code">("phone");
-
-  // Already authenticated
   if (user) {
     onVerified();
     return null;
@@ -58,174 +199,76 @@ function PhoneLoginGate({ onVerified }: { onVerified: () => void }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-vintage-cream flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-antique-gold rounded-full animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-vintage-cream">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-antique-gold" />
       </div>
     );
   }
 
-  const handleSendCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phone) return;
-    await sendCode(phone);
-    setStep("code");
-  };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!code) return;
-    await verifyCode(code);
-  };
-
-  const inputClass =
-    "w-full px-4 py-3 rounded-lg border border-slate-grey/30 bg-stark-white text-deep-black placeholder-slate-grey/50 focus:outline-none focus:ring-2 focus:ring-antique-gold transition-colors";
-
   return (
-    <div className="min-h-screen bg-vintage-cream flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-deep-black font-heading mb-2">
-            Book an Appointment
-          </h1>
-          <p className="text-slate-grey text-sm">
-            Verify your phone number to continue booking.
-          </p>
-          <div className="w-16 h-1 bg-antique-gold mx-auto rounded-full mt-3" />
-        </div>
+    <div className="min-h-screen bg-vintage-cream px-4 py-8 md:py-12">
+      <div className="mx-auto max-w-3xl space-y-6">
+        <BrandMasthead subtitle="Sign in to reserve your time and secure your spot." />
 
-        <div className="bg-stark-white rounded-xl shadow-lg border border-slate-grey/10 p-8">
-          {step === "phone" ? (
-            <form onSubmit={handleSendCode} className="space-y-5">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-antique-gold/10 flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-antique-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="font-heading font-bold text-deep-black">
-                    Enter your phone number
-                  </h2>
-                  <p className="text-xs text-slate-grey">
-                    We&apos;ll send you a verification code via SMS.
-                  </p>
-                </div>
-              </div>
+        <div className="mx-auto w-full max-w-lg rounded-2xl border border-slate-grey/15 bg-stark-white p-6 shadow-lg md:p-8">
+          <p className="mb-5 text-sm text-slate-grey" style={accentFont}>Continue with your account to start booking.</p>
 
-              <input
-                type="tel"
-                placeholder="+31 6 1234 5678"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={inputClass}
-                required
-              />
+          <div className="space-y-3">
+            {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-              <p className="text-[11px] text-slate-grey/70">
-                Use international format including country code (e.g.{" "}
-                <strong>+31</strong> for NL, <strong>+1</strong> for US).
-              </p>
+            <button
+              onClick={signInWithGoogle}
+              disabled={busy}
+              className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-6 py-3 font-semibold text-deep-black shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+              style={headingFont}
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              </svg>
+              {busy ? "Signing in..." : "Continue with Google"}
+            </button>
 
-              {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={busy || !phone}
-                className="w-full py-3 bg-antique-gold hover:bg-amber-500 disabled:opacity-50 text-deep-black font-heading font-bold rounded-lg transition-colors shadow-md"
-              >
-                {busy ? "Sending…" : "Send Verification Code"}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerify} className="space-y-5">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-antique-gold/10 flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-antique-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="font-heading font-bold text-deep-black">
-                    Enter verification code
-                  </h2>
-                  <p className="text-xs text-slate-grey">
-                    Sent to <strong>{phone}</strong>
-                  </p>
-                </div>
-              </div>
-
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="123456"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                className={`${inputClass} text-center text-2xl tracking-[0.4em] font-heading`}
-                required
-              />
-
-              {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={busy || code.length < 6}
-                className="w-full py-3 bg-antique-gold hover:bg-amber-500 disabled:opacity-50 text-deep-black font-heading font-bold rounded-lg transition-colors shadow-md"
-              >
-                {busy ? "Verifying…" : "Verify & Continue"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("phone");
-                  setCode("");
-                }}
-                className="w-full text-sm text-slate-grey hover:text-deep-black transition-colors"
-              >
-                ← Use a different number
-              </button>
-            </form>
-          )}
+            <button
+              onClick={signInWithApple}
+              disabled={busy}
+              className="flex w-full items-center justify-center gap-3 rounded-lg bg-[#111111] px-6 py-3 font-semibold text-white shadow-sm transition-colors hover:bg-black disabled:opacity-50"
+              style={headingFont}
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+              </svg>
+              {busy ? "Signing in..." : "Continue with Apple"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ── 2-Week Agenda Booking View ──────────────────────────────── */
-
-function AgendaBookingView() {
-  const navigate = useNavigate();
+function AgendaBookingView({ paymentCancelled }: { paymentCancelled: boolean }) {
   const { user, logout } = usePhoneAuth();
-  const {
-    addAppointment,
-    getAvailableTimeSlots,
-    getAppointmentsByDate,
-    breakMinutes,
-  } = useBooking();
+  const { getAvailableTimeSlots, getAppointmentsByDate, breakMinutes } = useBooking();
 
   const [serviceId, setServiceId] = useState(services[0].id);
   const [customerName, setCustomerName] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState<{
-    date: string;
-    time: string;
-  } | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const days = useMemo(buildNext14Days, []);
+  const contactInfo = user?.phoneNumber ?? user?.email ?? user?.displayName ?? "Signed in user";
+  const defaultCustomerName = user?.displayName?.trim() || user?.email?.split("@")[0] || "";
+  const bookingContact = user?.phoneNumber ?? user?.email ?? "social-login";
 
-  const phone = user?.phoneNumber ?? "";
+  useEffect(() => {
+    if (!customerName.trim() && defaultCustomerName) {
+      setCustomerName(defaultCustomerName);
+    }
+  }, [customerName, defaultCustomerName]);
 
-  /* Precompute availability for every day in the 2-week window */
   const dayData = useMemo(() => {
     return days.map((day) => {
       const available = getAvailableTimeSlots(day, serviceId);
@@ -234,205 +277,163 @@ function AgendaBookingView() {
     });
   }, [days, serviceId, getAvailableTimeSlots, getAppointmentsByDate]);
 
-  const handleBook = () => {
+  const handleBook = async () => {
     if (!selectedSlot || !customerName) return;
+    const svc = services.find((s) => s.id === serviceId);
+    if (!svc) return;
 
-    const appointment: Appointment = {
-      id: crypto.randomUUID(),
-      customerName,
-      phoneNumber: phone,
-      serviceId,
-      date: selectedSlot.date,
-      timeSlot: selectedSlot.time,
-      status: "booked",
-      createdAt: new Date().toISOString(),
-    };
+    setBusy(true);
+    try {
+      const pending = {
+        id: crypto.randomUUID(),
+        customerName,
+        contactInfo: bookingContact,
+        serviceId,
+        serviceName: svc.name,
+        serviceDuration: svc.duration,
+        date: selectedSlot.date,
+        time: selectedSlot.time,
+        email: user?.email ?? null,
+      };
 
-    addAppointment(appointment);
-    setSuccess(true);
-    setTimeout(() => navigate("/"), 3000);
+      localStorage.setItem("pendingBooking", JSON.stringify(pending));
+
+      const functions = getFunctions(app, "europe-west1");
+      const createSession = httpsCallable(functions, "createCheckoutSession");
+      const result = await createSession({
+        booking: {
+          customerName,
+          email: user?.email ?? null,
+          serviceName: svc.name,
+          serviceDuration: svc.duration,
+          date: selectedSlot.date,
+          time: selectedSlot.time,
+          formattedDate: `${shortDay(selectedSlot.date)} ${shortDate(selectedSlot.date)}`,
+          formattedTime: formatTime(selectedSlot.time),
+          contactInfo: bookingContact,
+        },
+        baseUrl: window.location.origin,
+      });
+
+      const { sessionUrl } = result.data as { sessionUrl: string };
+      window.location.href = sessionUrl;
+    } catch (err) {
+      console.error("Payment error:", err);
+      setBusy(false);
+    }
   };
 
   const selectedService = services.find((s) => s.id === serviceId);
 
-  /* ── Success screen ─────────────────────────────────────────── */
-  if (success && selectedSlot) {
-    return (
-      <div className="min-h-screen bg-vintage-cream flex items-center justify-center px-4">
-        <div className="bg-stark-white rounded-xl shadow-xl p-10 text-center max-w-md border border-slate-grey/10">
-          <div className="w-16 h-16 bg-antique-gold/10 rounded-full flex items-center justify-center mx-auto mb-5">
-            <svg
-              className="w-8 h-8 text-antique-gold"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-deep-black font-heading mb-2">
-            Booking Confirmed!
-          </h2>
-          <p className="text-slate-grey">
-            See you on{" "}
-            <strong className="text-deep-black">
-              {shortDay(selectedSlot.date)} {shortDate(selectedSlot.date)}
-            </strong>{" "}
-            at{" "}
-            <strong className="text-deep-black">
-              {formatTime(selectedSlot.time)}
-            </strong>
-            .
-          </p>
-          <p className="text-sm text-slate-grey/60 mt-5">
-            Redirecting to home…
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── Main view ──────────────────────────────────────────────── */
   return (
-    <div className="min-h-screen bg-vintage-cream py-6 px-4 md:py-10">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-deep-black font-heading">
-              Book an Appointment
-            </h1>
-            <p className="text-slate-grey text-sm mt-1">
-              Pick a service, then tap an available slot in the next 2 weeks.
-            </p>
+    <div className="min-h-screen bg-vintage-cream px-4 py-6 md:py-10">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <BrandMasthead subtitle="Choose your service and slot, then confirm with a EUR 5 deposit." />
+
+        {paymentCancelled && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Payment was cancelled. Your slot is not booked yet. Please confirm and pay to finalize.
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-grey font-heading">
-              {phone}
-            </span>
+        )}
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-xl border border-slate-grey/15 bg-stark-white p-5 shadow-sm lg:col-span-2">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-deep-black" style={headingFont}>Service</label>
+                <select
+                  value={serviceId}
+                  onChange={(e) => {
+                    setServiceId(e.target.value);
+                    setSelectedSlot(null);
+                  }}
+                  className="w-full rounded-lg border border-slate-grey/30 bg-stark-white px-4 py-3 text-deep-black transition-colors focus:outline-none focus:ring-2 focus:ring-antique-gold"
+                >
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} - EUR {s.price} ({s.duration} min)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-deep-black" style={headingFont}>Your Name</label>
+                <input
+                  type="text"
+                  placeholder="John Doe"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full rounded-lg border border-slate-grey/30 bg-stark-white px-4 py-3 text-deep-black placeholder-slate-grey/50 transition-colors focus:outline-none focus:ring-2 focus:ring-antique-gold"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#C5A059]/30 bg-[#C5A059]/10 p-5 shadow-sm">
+            <p className="text-[10px] uppercase tracking-[0.35em] text-[#C5A059]" style={accentFont}>Signed In</p>
+            <p className="mt-2 break-all text-sm text-deep-black">{contactInfo}</p>
+            <div className="mt-4 rounded-lg border border-[#C5A059]/35 bg-stark-white/70 p-3 text-sm text-deep-black">
+              <p className="font-semibold" style={headingFont}>Deposit Policy</p>
+              <p className="mt-1 text-xs text-slate-grey">EUR 5 is paid upfront and deducted from your total at the shop.</p>
+            </div>
             <button
               onClick={logout}
-              className="text-xs text-red-500 hover:text-red-700 font-heading transition-colors"
+              className="mt-4 text-xs font-heading font-semibold text-red-600 transition-colors hover:text-red-800"
             >
               Sign out
             </button>
           </div>
         </div>
 
-        {/* Service selector + name */}
-        <div className="bg-stark-white rounded-xl border border-slate-grey/10 shadow-sm p-5 flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-heading font-semibold text-deep-black mb-1">
-              Service
-            </label>
-            <select
-              value={serviceId}
-              onChange={(e) => {
-                setServiceId(e.target.value);
-                setSelectedSlot(null);
-              }}
-              className="w-full px-4 py-3 rounded-lg border border-slate-grey/30 bg-stark-white text-deep-black focus:outline-none focus:ring-2 focus:ring-antique-gold transition-colors"
-            >
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} — €{s.price} ({s.duration} min)
-                </option>
-              ))}
-            </select>
+        {selectedService && (
+          <div className="rounded-xl border border-[#C5A059]/30 bg-stark-white p-4 text-sm text-deep-black shadow-sm">
+            <strong>{selectedService.name}</strong> - {selectedService.duration} min + {breakMinutes} min cleanup break
           </div>
+        )}
 
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-heading font-semibold text-deep-black mb-1">
-              Your Name
-            </label>
-            <input
-              type="text"
-              placeholder="John Doe"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border border-slate-grey/30 bg-stark-white text-deep-black placeholder-slate-grey/50 focus:outline-none focus:ring-2 focus:ring-antique-gold transition-colors"
-            />
-          </div>
-
-          {selectedService && (
-            <div className="rounded-lg bg-antique-gold/10 border border-antique-gold/30 px-4 py-3 text-sm text-deep-black">
-              <strong>{selectedService.name}</strong> · {selectedService.duration} min · {breakMinutes} min break after
-            </div>
-          )}
-        </div>
-
-        {/* 2-Week Agenda Grid */}
         <div className="space-y-3">
           {dayData.map(({ day, available, booked }) => {
             const isToday = day === toIso(new Date());
-            const isSunday = new Date(day + "T12:00:00").getDay() === 0;
+            const isClosedDay = isClosedWeekDay(day);
 
             return (
               <div
                 key={day}
-                className={`bg-stark-white rounded-xl border shadow-sm overflow-hidden ${
-                  isToday
-                    ? "border-antique-gold/40"
-                    : "border-slate-grey/10"
-                } ${isSunday ? "opacity-50" : ""}`}
+                className={`overflow-hidden rounded-xl border bg-stark-white shadow-sm ${
+                  isToday ? "border-antique-gold/45" : "border-slate-grey/15"
+                } ${isClosedDay ? "opacity-60" : ""}`}
               >
-                {/* Day header */}
                 <div
-                  className={`px-4 py-2.5 flex items-center gap-3 border-b ${
+                  className={`flex items-center gap-3 border-b px-4 py-2.5 ${
                     isToday
-                      ? "bg-antique-gold/5 border-antique-gold/20"
-                      : "bg-slate-grey/[0.02] border-slate-grey/10"
+                      ? "border-antique-gold/25 bg-antique-gold/10"
+                      : "border-slate-grey/10 bg-slate-grey/[0.03]"
                   }`}
                 >
-                  <span className="font-heading font-bold text-deep-black text-sm min-w-[36px]">
-                    {shortDay(day)}
-                  </span>
-                  <span className="text-slate-grey text-sm">
-                    {shortDate(day)}
-                  </span>
-                  {isToday && (
-                    <span className="text-[10px] text-antique-gold font-heading uppercase tracking-widest">
-                      Today
-                    </span>
-                  )}
-                  <span className="ml-auto text-xs text-slate-grey">
-                    {available.length} slot{available.length !== 1 ? "s" : ""}{" "}
-                    open
-                  </span>
+                  <span className="min-w-[36px] text-sm font-bold text-deep-black" style={headingFont}>{shortDay(day)}</span>
+                  <span className="text-sm text-slate-grey">{shortDate(day)}</span>
+                  {isToday && <span className="text-[10px] uppercase tracking-widest text-[#C5A059]" style={accentFont}>Today</span>}
+                  <span className="ml-auto text-xs text-slate-grey">{available.length} open</span>
                 </div>
 
-                {/* Slots row */}
-                {isSunday ? (
-                  <div className="px-4 py-4 text-center text-sm text-slate-grey/60">
-                    Closed on Sundays
-                  </div>
+                {isClosedDay ? (
+                  <div className="px-4 py-4 text-center text-sm text-slate-grey/70">Closed on Sundays and Mondays</div>
                 ) : available.length === 0 ? (
-                  <div className="px-4 py-4 text-center text-sm text-slate-grey/60">
-                    Fully booked
-                  </div>
+                  <div className="px-4 py-4 text-center text-sm text-slate-grey/70">Fully booked</div>
                 ) : (
-                  <div className="px-3 py-3 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 px-3 py-3">
                     {WORKING_TIME_SLOTS.map((slot) => {
-                      const isBooked = booked.some(
-                        (a) =>
-                          a.timeSlot === slot && a.status !== "completed"
-                      );
+                      const isBooked = booked.some((a) => a.timeSlot === slot && a.status !== "completed");
                       const isAvailable = available.includes(slot);
-                      const isSelected =
-                        selectedSlot?.date === day &&
-                        selectedSlot?.time === slot;
+                      const isSelected = selectedSlot?.date === day && selectedSlot?.time === slot;
 
                       if (!isAvailable && !isBooked) {
-                        // blocked by overlap / break — show dimmed
                         return (
                           <div
                             key={slot}
-                            className="px-3 py-2 rounded-lg text-xs font-heading text-slate-grey/30 bg-slate-grey/[0.03] border border-transparent"
+                            className="rounded-lg border border-transparent bg-slate-grey/[0.04] px-3 py-2 text-xs text-slate-grey/35"
+                            style={headingFont}
                           >
                             {formatTime(slot)}
                           </div>
@@ -443,7 +444,8 @@ function AgendaBookingView() {
                         return (
                           <div
                             key={slot}
-                            className="px-3 py-2 rounded-lg text-xs font-heading text-red-400/70 bg-red-50 border border-red-100 cursor-not-allowed"
+                            className="cursor-not-allowed rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-400/70"
+                            style={headingFont}
                             title="Taken"
                           >
                             {formatTime(slot)}
@@ -454,16 +456,13 @@ function AgendaBookingView() {
                       return (
                         <button
                           key={slot}
-                          onClick={() =>
-                            setSelectedSlot(
-                              isSelected ? null : { date: day, time: slot }
-                            )
-                          }
-                          className={`px-3 py-2 rounded-lg text-xs font-heading font-semibold transition-all border ${
+                          onClick={() => setSelectedSlot(isSelected ? null : { date: day, time: slot })}
+                          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-all ${
                             isSelected
-                              ? "bg-antique-gold text-deep-black border-antique-gold shadow-md scale-105"
-                              : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300"
+                              ? "scale-105 border-[#C5A059] bg-[#C5A059] text-deep-black shadow-md"
+                              : "border-green-200 bg-green-50 text-green-700 hover:border-green-300 hover:bg-green-100"
                           }`}
+                          style={headingFont}
                         >
                           {formatTime(slot)}
                         </button>
@@ -476,59 +475,50 @@ function AgendaBookingView() {
           })}
         </div>
 
-        {/* Sticky booking bar */}
         {selectedSlot && (
           <div className="sticky bottom-4 z-50">
-            <div className="bg-deep-black text-stark-white rounded-xl shadow-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-4 border border-antique-gold/20">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#C5A059]/30 bg-[#111111] px-5 py-4 text-stark-white shadow-2xl">
               <div>
-                <p className="text-[10px] text-antique-gold font-heading uppercase tracking-widest mb-0.5">
-                  Selected
+                <p className="mb-1 text-[10px] uppercase tracking-widest text-[#C5A059]" style={accentFont}>Selected Slot</p>
+                <p className="font-bold" style={headingFont}>
+                  {shortDay(selectedSlot.date)} {shortDate(selectedSlot.date)} at {formatTime(selectedSlot.time)}
                 </p>
-                <p className="font-heading font-bold">
-                  {shortDay(selectedSlot.date)}{" "}
-                  {shortDate(selectedSlot.date)} at{" "}
-                  {formatTime(selectedSlot.time)}
-                </p>
-                <p className="text-xs text-stark-white/60">
-                  {selectedService?.name} · €{selectedService?.price}
-                </p>
+                <p className="text-xs text-stark-white/65">{selectedService?.name} - EUR {selectedService?.price}</p>
               </div>
+
               <div className="flex gap-2">
                 <button
                   onClick={() => setSelectedSlot(null)}
-                  className="px-4 py-2.5 rounded-lg border border-stark-white/20 text-stark-white text-sm font-heading hover:bg-stark-white/10 transition-colors"
+                  className="rounded-lg border border-stark-white/20 px-4 py-2.5 text-sm transition-colors hover:bg-stark-white/10"
+                  style={headingFont}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleBook}
-                  disabled={!customerName}
-                  className="px-6 py-2.5 rounded-lg bg-antique-gold hover:bg-amber-500 disabled:opacity-50 text-deep-black font-heading font-bold text-sm transition-colors shadow-md"
+                  disabled={!customerName || busy}
+                  className="rounded-lg bg-[#C5A059] px-6 py-2.5 text-sm font-bold text-[#1A1A1A] shadow-md transition-colors hover:bg-[#b49149] disabled:opacity-50"
+                  style={headingFont}
                 >
-                  {!customerName ? "Enter name first" : "Confirm Booking"}
+                  {busy ? "Redirecting to payment..." : !customerName ? "Enter name first" : "Confirm and Pay EUR 5"}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Legend */}
-        <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-grey font-heading px-1 pb-6">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 px-1 pb-4 text-[11px] text-slate-grey" style={accentFont}>
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-green-50 border border-green-200 inline-block" />{" "}
-            Available
+            <span className="inline-block h-3 w-3 rounded border border-green-200 bg-green-50" /> Available
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-red-50 border border-red-100 inline-block" />{" "}
-            Taken
+            <span className="inline-block h-3 w-3 rounded border border-red-100 bg-red-50" /> Taken
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-antique-gold border border-antique-gold inline-block" />{" "}
-            Your pick
+            <span className="inline-block h-3 w-3 rounded border border-antique-gold bg-antique-gold" /> Your pick
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-slate-grey/[0.03] border border-transparent inline-block" />{" "}
-            Blocked
+            <span className="inline-block h-3 w-3 rounded border border-transparent bg-slate-grey/[0.04]" /> Blocked
           </span>
         </div>
       </div>
@@ -536,15 +526,77 @@ function AgendaBookingView() {
   );
 }
 
-/* ── Main Export ──────────────────────────────────────────────── */
-
 export default function BookingPage() {
   const [verified, setVerified] = useState(false);
-  const { user } = usePhoneAuth();
+  const [successData, setSuccessData] = useState<SuccessData | null>(null);
+  const [paymentCancelled, setPaymentCancelled] = useState(false);
 
-  // If already logged in, skip the gate
+  const { user } = usePhoneAuth();
+  const { addAppointment } = useBooking();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    const sessionId = params.get("session_id");
+
+    if (payment === "success" && sessionId) {
+      const raw = localStorage.getItem("pendingBooking");
+      if (raw) {
+        try {
+          const pending = JSON.parse(raw) as {
+            id: string;
+            customerName: string;
+            contactInfo: string;
+            serviceId: string;
+            serviceName: string;
+            serviceDuration: number;
+            date: string;
+            time: string;
+            email: string | null;
+          };
+
+          addAppointment({
+            id: pending.id,
+            customerName: pending.customerName,
+            phoneNumber: pending.contactInfo,
+            serviceId: pending.serviceId,
+            date: pending.date,
+            timeSlot: pending.time,
+            status: "booked",
+            createdAt: new Date().toISOString(),
+          });
+
+          const functions = getFunctions(app, "europe-west1");
+          const verifyAndEmail = httpsCallable(functions, "verifyPaymentAndEmail");
+          verifyAndEmail({ sessionId }).catch(console.error);
+
+          localStorage.removeItem("pendingBooking");
+          setSuccessData({
+            customerName: pending.customerName,
+            serviceName: pending.serviceName,
+            serviceDuration: pending.serviceDuration,
+            date: pending.date,
+            time: pending.time,
+            email: pending.email,
+          });
+          setPaymentCancelled(false);
+        } catch (e) {
+          console.error("Failed to restore pending booking:", e);
+        }
+      }
+      window.history.replaceState({}, "", "/book");
+    } else if (payment === "cancelled") {
+      setPaymentCancelled(true);
+      window.history.replaceState({}, "", "/book");
+    }
+  }, [addAppointment]);
+
+  if (successData) {
+    return <BookingSuccessScreen data={successData} />;
+  }
+
   if (user || verified) {
-    return <AgendaBookingView />;
+    return <AgendaBookingView paymentCancelled={paymentCancelled} />;
   }
 
   return <PhoneLoginGate onVerified={() => setVerified(true)} />;

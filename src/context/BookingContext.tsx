@@ -32,6 +32,7 @@ const BREAK_STORAGE_KEY = "tiptop_break_minutes";
 const DEFAULT_BREAK_MINUTES = 15;
 const MAX_BREAK_MINUTES = 120;
 const SHOP_CLOSE_MINUTES = 18 * 60;
+const CLOSED_WEEK_DAYS = new Set([0, 1]); // Sunday + Monday
 
 export const WORKING_TIME_SLOTS = [
   "09:00",
@@ -241,6 +242,11 @@ export function BookingProvider({ children }: { children: ReactNode }) {
   const getAvailableTimeSlots = useCallback(
     (date: string, serviceId: string, excludeAppointmentId?: string) => {
       if (!date || !serviceId) {
+        return [];
+      }
+
+      const dayOfWeek = new Date(date + "T12:00:00").getDay();
+      if (CLOSED_WEEK_DAYS.has(dayOfWeek)) {
         return [];
       }
 

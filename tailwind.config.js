@@ -4,12 +4,21 @@ module.exports = {
     content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
   	extend: {
+		fontFamily: {
+			heading: ["'Roboto Condensed'", "'Arial Narrow'", "sans-serif"],
+			accent: ["'Lora'", "serif"],
+		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		colors: {
+			'antique-gold': '#C5A059',
+			'deep-black': '#111111',
+			'vintage-cream': '#F5F0EB',
+			'stark-white': '#FFFFFF',
+			'slate-grey': '#6B7280',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

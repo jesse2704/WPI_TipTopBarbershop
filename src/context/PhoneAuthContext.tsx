@@ -7,11 +7,11 @@ import {
   type ReactNode,
 } from "react";
 import {
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
   onAuthStateChanged,
   signOut,
-  type ConfirmationResult,
   type User,
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
@@ -25,12 +25,12 @@ interface PhoneAuthContextType {
   loading: boolean;
   /** Human-readable error message (cleared on next action) */
   error: string | null;
-  /** True while waiting for SMS or verification */
+  /** True while popup sign-in is in progress */
   busy: boolean;
-  /** Step 1 — send a verification code to the phone number */
-  sendCode: (phoneNumber: string) => Promise<void>;
-  /** Step 2 — verify the 6-digit code received via SMS */
-  verifyCode: (code: string) => Promise<void>;
+  /** Sign in using Google */
+  signInWithGoogle: () => Promise<void>;
+  /** Sign in using Apple */
+  signInWithApple: () => Promise<void>;
   /** Sign out */
   logout: () => Promise<void>;
 }
@@ -46,8 +46,6 @@ export function PhoneAuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmationResult, setConfirmationResult] =
-    useState<ConfirmationResult | null>(null);
 
   /* Listen for auth state changes (persists across refreshes) */
   useEffect(() => {
@@ -58,80 +56,41 @@ export function PhoneAuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  /* Invisible reCAPTCHA setup (required by Firebase Phone Auth) */
-  const getRecaptchaVerifier = useCallback(() => {
-    // Re-use existing or create a new invisible reCAPTCHA
-    if (!(window as any).__recaptchaVerifier) {
-      (window as any).__recaptchaVerifier = new RecaptchaVerifier(
-        auth,
-        "recaptcha-container",
-        { size: "invisible" }
-      );
+  const signInWithGoogle = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setError(err?.message ?? "Google sign-in failed.");
+    } finally {
+      setBusy(false);
     }
-    return (window as any).__recaptchaVerifier as RecaptchaVerifier;
   }, []);
 
-  /* Step 1 — send verification SMS */
-  const sendCode = useCallback(
-    async (phoneNumber: string) => {
-      setError(null);
-      setBusy(true);
-      try {
-        const verifier = getRecaptchaVerifier();
-        const result = await signInWithPhoneNumber(auth, phoneNumber, verifier);
-        setConfirmationResult(result);
-      } catch (err: any) {
-        // Reset reCAPTCHA so it can be retried
-        (window as any).__recaptchaVerifier = undefined;
-        setError(
-          err?.message?.includes("auth/invalid-phone-number")
-            ? "Invalid phone number. Use international format, e.g. +31612345678."
-            : err?.message ?? "Failed to send verification code."
-        );
-      } finally {
-        setBusy(false);
-      }
-    },
-    [getRecaptchaVerifier]
-  );
-
-  /* Step 2 — verify the SMS code */
-  const verifyCode = useCallback(
-    async (code: string) => {
-      if (!confirmationResult) {
-        setError("No verification in progress. Please request a new code.");
-        return;
-      }
-      setError(null);
-      setBusy(true);
-      try {
-        await confirmationResult.confirm(code);
-        // onAuthStateChanged will fire and set `user`
-      } catch (err: any) {
-        setError(
-          err?.message?.includes("auth/invalid-verification-code")
-            ? "Invalid code. Please try again."
-            : err?.message ?? "Verification failed."
-        );
-      } finally {
-        setBusy(false);
-      }
-    },
-    [confirmationResult]
-  );
+  const signInWithApple = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const provider = new OAuthProvider("apple.com");
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setError(err?.message ?? "Apple sign-in failed.");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   const logout = useCallback(async () => {
     await signOut(auth);
-    setConfirmationResult(null);
   }, []);
 
   return (
     <PhoneAuthContext.Provider
-      value={{ user, loading, error, busy, sendCode, verifyCode, logout }}
+      value={{ user, loading, error, busy, signInWithGoogle, signInWithApple, logout }}
     >
       {children}
-      {/* Invisible reCAPTCHA mount point — required by Firebase */}
-      <div id="recaptcha-container" />
     </PhoneAuthContext.Provider>
   );
 }

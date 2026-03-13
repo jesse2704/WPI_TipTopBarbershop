@@ -9,6 +9,9 @@ import { useBooking, WORKING_TIME_SLOTS } from "../context/BookingContext";
 import { services } from "../data/services";
 import type { Appointment } from "../types";
 
+const headingFont = { fontFamily: "'Roboto Condensed', 'Arial Narrow', sans-serif" };
+const accentFont = { fontFamily: "'Lora', serif" };
+
 /* ── helpers ─────────────────────────────────────────────────── */
 
 function getServiceName(id: string): string {
@@ -44,7 +47,7 @@ function formatDateLabel(iso: string): string {
 
 const statusColors: Record<Appointment["status"], string> = {
   booked: "bg-blue-100 text-blue-800",
-  "in-progress": "bg-antique-gold/20 text-amber-800",
+  "in-progress": "bg-antique-gold/20 text-amber-900",
   completed: "bg-green-100 text-green-800",
 };
 
@@ -56,7 +59,8 @@ function StatusBadge({ status }: { status: Appointment["status"] }) {
 
   return (
     <span
-      className={`text-[10px] font-heading px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[status]}`}
+      className={`text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[status]}`}
+      style={headingFont}
     >
       {label}
     </span>
@@ -155,32 +159,37 @@ export default function BarberDashboardPage() {
   return (
     <div className="min-h-screen bg-vintage-cream py-6 px-4 md:py-10">
       <div className="max-w-4xl mx-auto space-y-5">
-        {/* ── Header ────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-deep-black font-heading">
-              Barber Dashboard
-            </h1>
-            <p className="text-slate-grey text-sm mt-1">
-              Drag &amp; drop appointments between time slots.
-            </p>
-          </div>
+        <div className="relative overflow-hidden rounded-2xl border border-antique-gold/25 bg-deep-black px-6 py-7 shadow-xl md:px-8 md:py-8">
+          <div className="absolute -top-12 -right-16 h-44 w-44 rounded-full bg-antique-gold/15 blur-2xl" />
+          <div className="absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] tracking-[0.45em] uppercase text-antique-gold" style={accentFont}>
+                Tip Top Barbershop
+              </p>
+              <h1 className="mt-2 text-4xl md:text-5xl font-black text-vintage-cream leading-[0.9]" style={headingFont}>
+                Barber Dashboard
+              </h1>
+              <p className="text-sm text-vintage-cream/65 mt-2" style={accentFont}>
+                Drag and drop appointments to keep the day on track.
+              </p>
+            </div>
 
-          {/* Break setting */}
-          <div className="bg-stark-white rounded-xl border border-slate-grey/15 shadow-sm px-4 py-3 flex items-center gap-3">
-            <label className="text-sm font-heading font-semibold text-deep-black whitespace-nowrap">
-              Break
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={120}
-              step={5}
-              value={breakMinutes}
-              onChange={(e) => setBreakMinutes(Number(e.target.value))}
-              className="w-16 px-2 py-1.5 rounded-lg border border-slate-grey/30 bg-stark-white text-deep-black text-center focus:outline-none focus:ring-2 focus:ring-antique-gold"
-            />
-            <span className="text-xs text-slate-grey">min</span>
+            <div className="bg-stark-white rounded-xl border border-slate-grey/15 shadow-sm px-4 py-3 flex items-center gap-3">
+              <label className="text-sm font-semibold text-deep-black whitespace-nowrap" style={headingFont}>
+                Break
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                step={5}
+                value={breakMinutes}
+                onChange={(e) => setBreakMinutes(Number(e.target.value))}
+                className="w-16 px-2 py-1.5 rounded-lg border border-slate-grey/30 bg-stark-white text-deep-black text-center focus:outline-none focus:ring-2 focus:ring-antique-gold"
+              />
+              <span className="text-xs text-slate-grey" style={accentFont}>min</span>
+            </div>
           </div>
         </div>
 
@@ -197,11 +206,11 @@ export default function BarberDashboardPage() {
           </button>
 
           <div className="flex-1 text-center">
-            <p className="text-lg font-bold font-heading text-deep-black">
+            <p className="text-lg font-bold text-deep-black" style={headingFont}>
               {formatDateLabel(selectedDate)}
             </p>
             {selectedDate === today && (
-              <span className="text-xs text-antique-gold font-heading uppercase tracking-wider">
+              <span className="text-xs text-antique-gold uppercase tracking-wider" style={accentFont}>
                 Today
               </span>
             )}
@@ -220,7 +229,8 @@ export default function BarberDashboardPage() {
           {selectedDate !== today && (
             <button
               onClick={() => setSelectedDate(today)}
-              className="ml-2 px-3 py-1.5 text-xs font-heading font-semibold rounded-lg border border-antique-gold text-antique-gold hover:bg-antique-gold/10 transition-colors"
+              className="ml-2 px-3 py-1.5 text-xs font-semibold rounded-lg border border-antique-gold text-antique-gold hover:bg-antique-gold/10 transition-colors"
+              style={headingFont}
             >
               Today
             </button>
@@ -230,14 +240,16 @@ export default function BarberDashboardPage() {
             <button
               onClick={startSession}
               disabled={!nextBookedAppointment || !!currentAppointment}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-heading font-semibold rounded-lg transition-colors text-sm"
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-sm"
+              style={headingFont}
             >
               Start
             </button>
             <button
               onClick={finishSession}
               disabled={!currentAppointment}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-heading font-semibold rounded-lg transition-colors text-sm"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-sm"
+              style={headingFont}
             >
               Done
             </button>
@@ -261,10 +273,10 @@ export default function BarberDashboardPage() {
         {currentAppointment && (
           <div className="bg-antique-gold/5 border-2 border-antique-gold rounded-xl px-5 py-4 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-antique-gold font-heading uppercase tracking-widest mb-0.5">
+              <p className="text-[10px] text-antique-gold uppercase tracking-widest mb-0.5" style={accentFont}>
                 Currently in Chair
               </p>
-              <h3 className="text-lg font-bold text-deep-black font-heading">
+              <h3 className="text-lg font-bold text-deep-black" style={headingFont}>
                 {currentAppointment.customerName}
               </h3>
               <p className="text-slate-grey text-sm">
@@ -301,7 +313,7 @@ export default function BarberDashboardPage() {
                     >
                       {/* Time gutter */}
                       <div className="w-20 md:w-24 shrink-0 flex items-center justify-center border-r border-slate-grey/10 select-none">
-                        <span className="text-xs font-heading font-semibold text-slate-grey">
+                        <span className="text-xs font-semibold text-slate-grey" style={headingFont}>
                           {formatTime(slot)}
                         </span>
                       </div>
@@ -344,7 +356,7 @@ export default function BarberDashboardPage() {
                                     </svg>
                                   )}
                                   <div className="min-w-0">
-                                    <p className="font-bold text-deep-black font-heading text-sm truncate">
+                                    <p className="font-bold text-deep-black text-sm truncate" style={headingFont}>
                                       {appointment.customerName}
                                     </p>
                                     <p className="text-slate-grey text-xs truncate">
@@ -363,11 +375,12 @@ export default function BarberDashboardPage() {
                         ) : (
                           <div className="w-full flex items-center justify-center py-1">
                             <span
-                              className={`text-[11px] font-heading tracking-wide ${
+                              className={`text-[11px] tracking-wide ${
                                 isAvailable
                                   ? "text-green-500/60"
                                   : "text-slate-grey/30"
                               }`}
+                              style={accentFont}
                             >
                               {isAvailable ? "Available" : "—"}
                             </span>
@@ -384,7 +397,7 @@ export default function BarberDashboardPage() {
         </DragDropContext>
 
         {/* ── Summary footer ────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-4 text-xs text-slate-grey font-heading px-1">
+        <div className="flex flex-wrap gap-4 text-xs text-slate-grey px-1" style={accentFont}>
           <span>
             {dayAppointments.length} appointment{dayAppointments.length !== 1 ? "s" : ""}
           </span>
